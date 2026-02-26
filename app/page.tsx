@@ -8,8 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, ImageIcon } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const ThemeToggle = dynamic(
+  () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
+  { ssr: false }
+);
 
 export default function Home() {
   const [stats, setStats] = useState<DayStats | null>(null);

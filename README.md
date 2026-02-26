@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GitHub Daily Stats
+
+A Next.js app that calculates daily GitHub activity for a user, including total commits, additions, deletions, and per-repository breakdowns.
+
+## Features
+
+- Search by GitHub username and date range
+- Totals for commits, additions, and deletions
+- Per-repository stats with commit details
+- Optional Convex caching for past days to reduce GitHub API calls
+- Shareable SVG banner endpoint (`/api/banner`)
+- Light and dark theme toggle
+
+## Tech Stack
+
+- Next.js (App Router) + React + TypeScript
+- Tailwind CSS + shadcn/ui components
+- GitHub REST API
+- Convex (optional cache layer)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Install dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+bun install
+```
+
+If you prefer npm:
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Copy `example.env` to `.env.local` and set values:
+
+```env
+GITHUB_TOKEN=your_github_token
+
+# Optional (enable Convex caching)
+CONVEX_DEPLOYMENT=your_convex_deployment
+NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
+NEXT_PUBLIC_CONVEX_SITE_URL=https://your-project.convex.site
+```
+
+Notes:
+- `GITHUB_TOKEN` is strongly recommended to avoid low unauthenticated rate limits.
+- If `NEXT_PUBLIC_CONVEX_URL` is not set, the app still works and fetches directly from GitHub.
+
+### 3. Run locally
+
+```bash
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### `GET /api/stats`
 
-## Learn More
+Query params:
+- `username` (required)
+- `from` (optional, `YYYY-MM-DD`, defaults to today)
+- `to` (optional, `YYYY-MM-DD`, defaults to `from`)
 
-To learn more about Next.js, take a look at the following resources:
+Example:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```http
+/api/stats?username=torvalds&from=2026-02-01&to=2026-02-07
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### `GET /api/banner`
 
-## Deploy on Vercel
+Returns an SVG banner using computed stats.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Common params:
+- `username` (required)
+- `range` (`today`, `yesterday`, `last7`, `lastweek`, `thismonth`, `lastmonth`) or `from`/`to`
+- `w`, `h`, `bg1`, `bg2`, `dir`, `text`, `muted`, `accent`
+- `items` (comma list: `commits,additions,deletions,net`)
+- `top` (top repositories shown)
+- `title`, `subtitle`, `show_title`, `show_subtitle`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Example:
+
+```http
+/api/banner?username=torvalds&range=last7&items=commits,additions,deletions,net&top=3
+```
+
+## Scripts
+
+- `bun dev` or `npm run dev` - Start local dev server
+- `bun run build` or `npm run build` - Build for production
+- `bun start` or `npm run start` - Start production server
+
+## Project Structure
+
+```text
+app/                # Pages and API routes
+app/api/stats/      # JSON stats endpoint
+app/api/banner/     # SVG banner endpoint
+components/         # UI components
+lib/                # GitHub and server-side stats logic
+convex/             # Optional cache schema/functions
+```
+
+## Rate Limit and Caching
+
+- Without Convex, each request fetches directly from GitHub.
+- With Convex configured, past-day results are cached and reused.
+- The current day is always fetched fresh.
+
+## License
+
+Private/internal project.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Copy, Check, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import dynamic from "next/dynamic";
+
+const ThemeToggle = dynamic(
+  () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
+  { ssr: false }
+);
 
 interface BannerConfig {
   username: string;
@@ -185,14 +191,10 @@ const DEFAULT_CONFIG: BannerConfig = {
 
 export default function BannerPage() {
   const [config, setConfig] = useState<BannerConfig>(DEFAULT_CONFIG);
-  const [origin, setOrigin] = useState("");
+  const [origin] = useState(() =>
+    typeof window !== "undefined" ? window.location.origin : ""
+  );
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setOrigin(window.location.origin);
-    }
-  }, []);
 
   const set = useCallback(
     <K extends keyof BannerConfig>(key: K, value: BannerConfig[K]) =>
@@ -565,11 +567,13 @@ export default function BannerPage() {
               </CardHeader>
               <CardContent className="px-5 pb-5">
                 {previewSrc ? (
-                  <img
+                  <Image
                     src={previewSrc}
                     alt="Stats banner preview"
+                    width={config.width}
+                    height={config.height}
                     className="w-full rounded-lg border border-border"
-                    style={{ display: "block" }}
+                    unoptimized
                   />
                 ) : (
                   <div className="h-45 rounded-lg border border-dashed border-border flex items-center justify-center text-sm text-muted-foreground">
