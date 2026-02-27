@@ -39,72 +39,22 @@ export interface DayStats {
   repos: RepoStats[];
 }
 
-interface GHRepo {
-  full_name: string;
-  pushed_at: string;
-}
-
-interface GHCommit {
+interface SearchCommitItem {
   sha: string;
   html_url: string;
+  repository: { full_name: string };
   commit: { message: string; committer: { date: string } };
 }
 
 const statsCache = new Map<string, { additions: number; deletions: number }>();
 
-async function ghFetch(url: string) {
-  const res = await fetch(url, { headers: headers() });
+async function ghFetch(url: string, extraHeaders?: Record<string, string>) {
+  const res = await fetch(url, { headers: { ...headers(), ...extraHeaders } });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`GitHub API error ${res.status}: ${body}`);
   }
   return res.json();
-}
-
-async function getAllRepos(from: string): Promise<GHRepo[]> {
-  const fromTs = new Date(`${from}T00:00:00Z`).getTime();
-  const base =
-    `${GITHUB_API}/user/repos` +
-    `?visibility=all&affiliation=owner,collaborator,organization_member&per_page=100&sort=pushed`;
-
-  const firstPage: GHRepo[] = await ghFetch(`${base}&page=1`);
-  if (!firstPage.length) return [];
-
-  const lastOnPage = new Date(firstPage[firstPage.length - 1].pushed_at).getTime();
-  if (lastOnPage < fromTs) {
-    return firstPage.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
-  }
-
-  const PAGE_CAP = 10;
-  const extraPages = await Promise.all(
-    Array.from({ length: PAGE_CAP - 1 }, (_, i) =>
-      ghFetch(`${base}&page=${i + 2}`).catch(() => [] as GHRepo[])
-    )
-  );
-
-  const all = [...firstPage, ...extraPages.flat()];
-  return all.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
-}
-
-async function getCommitsInRepo(
-  fullName: string,
-  author: string,
-  since: string,
-  until: string
-): Promise<GHCommit[]> {
-  const commits: GHCommit[] = [];
-  let page = 1;
-  while (true) {
-    const url =
-      `${GITHUB_API}/repos/${fullName}/commits` +
-      `?author=${author}&since=${since}&until=${until}&per_page=100&page=${page}`;
-    const data: GHCommit[] = await ghFetch(url);
-    if (!Array.isArray(data) || data.length === 0) break;
-    commits.push(...data);
-    if (data.length < 100) break;
-    page++;
-  }
-  return commits;
 }
 
 async function getCommitDetail(
@@ -120,7 +70,7 @@ async function getCommitDetail(
 }
 
 async function fetchStats(
-  items: Array<{ fullName: string; commit: GHCommit }>,
+  items: Array<{ fullName: string; commit: SearchCommitItem }>,
   concurrency = 20
 ): Promise<CommitStats[]> {
   const results: CommitStats[] = [];
@@ -152,29 +102,30 @@ export async function fetchRawCommits(
   from: string,
   to: string
 ): Promise<CommitStats[]> {
-  const since = `${from}T00:00:00Z`;
-  const until = `${to}T23:59:59Z`;
+  const dateRange = from === to ? from : `${from}..${to}`;
+  const q = `author:${encodeURIComponent(username)}+author-date:${dateRange}`;
+  const searchHeaders = { Accept: "application/vnd.github.cloak-preview+json" };
 
-  const repos = await getAllRepos(from);
+  const allItems: SearchCommitItem[] = [];
+  let page = 1;
 
-  const REPO_CONCURRENCY = 20;
-  const allCommits: CommitStats[] = [];
-
-  for (let i = 0; i < repos.length; i += REPO_CONCURRENCY) {
-    const batch = repos.slice(i, i + REPO_CONCURRENCY);
-    const settled = await Promise.allSettled(
-      batch.map(async (repo) => {
-        const commits = await getCommitsInRepo(repo.full_name, username, since, until);
-        if (commits.length === 0) return [] as CommitStats[];
-        return fetchStats(commits.map((c) => ({ fullName: repo.full_name, commit: c })));
-      })
+  while (allItems.length < 1000) {
+    const data = await ghFetch(
+      `${GITHUB_API}/search/commits?q=${q}&per_page=100&page=${page}&sort=author-date&order=desc`,
+      searchHeaders
     );
-    for (const r of settled) {
-      if (r.status === "fulfilled") allCommits.push(...r.value);
-    }
+    if (!Array.isArray(data.items) || data.items.length === 0) break;
+    allItems.push(...data.items);
+    if (data.items.length < 100) break;
+    page++;
   }
 
-  return allCommits;
+  return fetchStats(
+    allItems.map((item) => ({
+      fullName: item.repository.full_name,
+      commit: item,
+    }))
+  );
 }
 
 export function aggregateCommits(

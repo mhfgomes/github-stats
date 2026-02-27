@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStats } from "@/lib/stats-server";
 
+export const maxDuration = 300;
+
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
 type RangeKey =
   | "today"
