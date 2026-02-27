@@ -2,28 +2,50 @@ import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import RepoCard from "./RepoCard";
+import { FilePlusCorner, FileMinusCorner, Activity, GitCommitHorizontal } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 function StatCard({
   label,
   value,
+  cqw,
+  icon: Icon,
   className,
 }: {
   label: string;
   value: string;
+  cqw: number;
+  icon: LucideIcon;
   className?: string;
 }) {
   return (
-    <Card className="gap-1 px-6 py-5">
-      <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-        {label}
+    <Card className="gap-1 px-6 py-5" style={{ containerType: "inline-size" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+          {label}
+        </span>
+        <Icon className="w-4 h-4 text-muted-foreground" />
+      </div>
+      <span
+        className={`font-bold font-mono leading-tight ${className}`}
+        style={{ fontSize: `clamp(0.875rem, ${cqw}cqw, 1.875rem)` }}
+      >
+        {value}
       </span>
-      <span className={`text-3xl font-bold font-mono ${className}`}>{value}</span>
     </Card>
   );
 }
 
 export default function StatsDisplay({ stats }: { stats: DayStats }) {
   const net = stats.totalAdditions - stats.totalDeletions;
+
+  const additions = `+${stats.totalAdditions.toLocaleString("en-US")}`;
+  const deletions = `-${stats.totalDeletions.toLocaleString("en-US")}`;
+  const netChange = `${net >= 0 ? "+" : ""}${net.toLocaleString("en-US")}`;
+  const commits = stats.totalCommits.toLocaleString("en-US");
+
+  const maxLen = Math.max(additions.length, deletions.length, netChange.length, commits.length);
+  const cqw = Math.min(28, Math.floor(110 / maxLen));
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,26 +64,16 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard
-            label="Additions"
-            value={`+${stats.totalAdditions.toLocaleString()}`}
-            className="text-emerald-400"
-          />
-          <StatCard
-            label="Deletions"
-            value={`-${stats.totalDeletions.toLocaleString()}`}
-            className="text-red-400"
-          />
+          <StatCard label="Additions" value={additions} cqw={cqw} icon={FilePlusCorner} className="text-emerald-400" />
+          <StatCard label="Deletions" value={deletions} cqw={cqw} icon={FileMinusCorner} className="text-red-400" />
           <StatCard
             label="Net change"
-            value={`${net >= 0 ? "+" : ""}${net.toLocaleString()}`}
+            value={netChange}
+            cqw={cqw}
+            icon={Activity}
             className={net >= 0 ? "text-emerald-400" : "text-red-400"}
           />
-          <StatCard
-            label="Commits"
-            value={stats.totalCommits.toLocaleString()}
-            className="text-violet-400"
-          />
+          <StatCard label="Commits" value={commits} cqw={cqw} icon={GitCommitHorizontal} className="text-violet-400" />
         </div>
       </div>
 

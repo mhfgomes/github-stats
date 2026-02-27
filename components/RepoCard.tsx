@@ -29,10 +29,10 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
 
             <div className="flex items-center gap-4 shrink-0 ml-4">
               <span className="text-sm font-mono font-semibold text-emerald-400">
-                +{repo.additions.toLocaleString()}
+                +{repo.additions.toLocaleString("en-US")}
               </span>
               <span className="text-sm font-mono font-semibold text-red-400">
-                -{repo.deletions.toLocaleString()}
+                -{repo.deletions.toLocaleString("en-US")}
               </span>
               <ChevronDown
                 className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
@@ -64,10 +64,10 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                 </div>
                 <div className="flex gap-3 shrink-0 text-sm font-mono">
                   <span className="text-emerald-400">
-                    +{c.additions.toLocaleString()}
+                    +{c.additions.toLocaleString("en-US")}
                   </span>
                   <span className="text-red-400">
-                    -{c.deletions.toLocaleString()}
+                    -{c.deletions.toLocaleString("en-US")}
                   </span>
                 </div>
               </div>
