@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStats } from "@/lib/stats-server";
 
-export const maxDuration = 300;
-
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const username = searchParams.get("username")?.trim();
