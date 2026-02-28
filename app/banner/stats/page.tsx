@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Copy, Check, Shuffle } from "lucide-react";
@@ -191,8 +191,7 @@ const DEFAULT_CONFIG: BannerConfig = {
 
 export default function StatsBannerPage() {
   const [config, setConfig] = useState<BannerConfig>(DEFAULT_CONFIG);
-  const [origin, setOrigin] = useState("");
-  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
 
   const set = useCallback(

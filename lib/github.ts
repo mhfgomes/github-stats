@@ -1,6 +1,6 @@
 const GITHUB_API = "https://api.github.com";
 
-function headers() {
+function githubHeaders() {
   const token = process.env.GITHUB_TOKEN;
   return {
     Accept: "application/vnd.github+json",
@@ -53,7 +53,7 @@ interface GHCommit {
 const statsCache = new Map<string, { additions: number; deletions: number }>();
 
 async function ghFetch(url: string) {
-  const res = await fetch(url, { headers: headers() });
+  const res = await fetch(url, { headers: githubHeaders() });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`GitHub API error ${res.status}: ${body}`);

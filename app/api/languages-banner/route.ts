@@ -104,22 +104,37 @@ function escapeXml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
+function headers() {
+  const token = process.env.GITHUB_TOKEN;
+  return {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 async function fetchLanguageBytes(
   username: string
 ): Promise<Map<string, number>> {
   const token = process.env.GITHUB_TOKEN;
-  const hdrs: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-  if (token) hdrs.Authorization = `Bearer ${token}`;
+
+  // Check if the requested username owns the token — if so use authenticated
+  // endpoint to include private repos, otherwise fall back to public API.
+  let isTokenOwner = false;
+  if (token) {
+    const meRes = await fetch("https://api.github.com/user", { headers: headers() });
+    if (meRes.ok) {
+      const me: { login: string } = await meRes.json();
+      isTokenOwner = me.login.toLowerCase() === username.toLowerCase();
+    }
+  }
 
   const allRepos: { full_name: string; fork: boolean }[] = [];
   for (let page = 1; page <= 5; page++) {
-    const res = await fetch(
-      `https://api.github.com/user/repos?visibility=all&affiliation=owner&per_page=100&page=${page}&sort=pushed`,
-      { headers: hdrs }
-    );
+    const url = isTokenOwner
+      ? `https://api.github.com/user/repos?visibility=all&affiliation=owner&per_page=100&page=${page}&sort=pushed`
+      : `https://api.github.com/users/${username}/repos?per_page=100&page=${page}&sort=pushed`;
+    const res = await fetch(url, { headers: headers() });
     if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
     const data: { full_name: string; fork: boolean }[] = await res.json();
     allRepos.push(...data);
@@ -138,7 +153,7 @@ async function fetchLanguageBytes(
       batch.map(async (repo) => {
         const res = await fetch(
           `https://api.github.com/repos/${repo.full_name}/languages`,
-          { headers: hdrs }
+          { headers: headers() }
         );
         if (!res.ok) return {} as Record<string, number>;
         return res.json() as Promise<Record<string, number>>;
@@ -228,21 +243,23 @@ function buildSVG(opts: {
       )
       .join("\n    ")}
   </g>
-  ${languages
-    .map((lang, i) => {
-      const col = i >= perCol ? 1 : 0;
-      const row = i % perCol;
-      const colOffsetX = pad + col * colW;
-      const cx = colOffsetX + dotR;
-      const cy = listY + row * rowH + Math.floor(rowH / 2);
-      const nameX = cx + dotR + Math.round(height * 0.018);
-      const pctX = pad + (col + 1) * colW - 4;
-      return `
+  ${languages.length === 0
+    ? `<text x="${width / 2}" y="${listY + Math.round((height - listY - pad) / 2)}" text-anchor="middle" dominant-baseline="central" fill="${muted}" font-size="${langSize}" font-weight="500" font-family="${font}" opacity="0.6">No language data available</text>`
+    : languages
+        .map((lang, i) => {
+          const col = i >= perCol ? 1 : 0;
+          const row = i % perCol;
+          const colOffsetX = pad + col * colW;
+          const cx = colOffsetX + dotR;
+          const cy = listY + row * rowH + Math.floor(rowH / 2);
+          const nameX = cx + dotR + Math.round(height * 0.018);
+          const pctX = pad + (col + 1) * colW - 4;
+          return `
   <circle cx="${cx}" cy="${cy}" r="${dotR}" fill="${lang.color}"/>
   <text x="${nameX}" y="${cy}" dominant-baseline="central" fill="${text}" font-size="${langSize}" font-weight="600" font-family="${font}">${escapeXml(lang.name)}</text>
   <text x="${pctX}" y="${cy}" text-anchor="end" dominant-baseline="central" fill="${muted}" font-size="${langSize}" font-weight="500" font-family="${font}">${lang.pct.toFixed(2)}%</text>`;
-    })
-    .join("")}
+        })
+        .join("")}
 </svg>`;
 }
 
@@ -279,10 +296,11 @@ export async function GET(req: NextRequest) {
       .slice(0, top);
 
     if (sorted.length === 0) {
-      return NextResponse.json(
-        { error: "No language data found" },
-        { status: 404 }
-      );
+      const emptySvg = buildSVG({ width, height, bg1, bg2, dir, text, muted, title, languages: [] });
+      return new NextResponse(emptySvg, {
+        status: 200,
+        headers: { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400" },
+      });
     }
 
     const topTotal = sorted.reduce((s, [, v]) => s + v, 0);
