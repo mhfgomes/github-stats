@@ -50,8 +50,6 @@ interface GHCommit {
   commit: { message: string; committer: { date: string } };
 }
 
-const statsCache = new Map<string, { additions: number; deletions: number }>();
-
 async function ghFetch(url: string) {
   const res = await fetch(url, { headers: githubHeaders() });
   if (!res.ok) {
@@ -111,12 +109,11 @@ async function getCommitDetail(
   fullName: string,
   sha: string
 ): Promise<{ additions: number; deletions: number }> {
-  const key = `${fullName}/${sha}`;
-  if (statsCache.has(key)) return statsCache.get(key)!;
   const data = await ghFetch(`${GITHUB_API}/repos/${fullName}/commits/${sha}`);
-  const result = { additions: data.stats?.additions ?? 0, deletions: data.stats?.deletions ?? 0 };
-  statsCache.set(key, result);
-  return result;
+  return {
+    additions: data.stats?.additions ?? 0,
+    deletions: data.stats?.deletions ?? 0,
+  };
 }
 
 async function fetchStats(

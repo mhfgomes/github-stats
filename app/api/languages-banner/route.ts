@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
 
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
 
@@ -22,6 +23,8 @@ const DEFAULTS = {
   muted: "#cbd5f5",
   top: 8,
 };
+const BANNER_CACHE_TTL_MS = 5 * 60 * 1000;
+const BANNER_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
 
 // GitHub linguist colors
 const LANG_COLORS: Record<string, string> = {
@@ -288,6 +291,18 @@ export async function GET(req: NextRequest) {
   const top = parseIntParam(searchParams.get("top"), DEFAULTS.top, 1, 12);
   const title =
     searchParams.get("title")?.trim() || "Most Used Languages";
+  const cacheKey = req.nextUrl.search;
+
+  const cachedSvg = getTtlCacheValue<string>("languages-banner", cacheKey);
+  if (cachedSvg) {
+    return new NextResponse(cachedSvg, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Cache-Control": BANNER_CACHE_CONTROL,
+      },
+    });
+  }
 
   try {
     const langBytes = await fetchLanguageBytes(username);
@@ -297,9 +312,10 @@ export async function GET(req: NextRequest) {
 
     if (sorted.length === 0) {
       const emptySvg = buildSVG({ width, height, bg1, bg2, dir, text, muted, title, languages: [] });
+      setTtlCacheValue("languages-banner", cacheKey, emptySvg, BANNER_CACHE_TTL_MS);
       return new NextResponse(emptySvg, {
         status: 200,
-        headers: { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400" },
+        headers: { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": BANNER_CACHE_CONTROL },
       });
     }
 
@@ -322,11 +338,13 @@ export async function GET(req: NextRequest) {
       languages,
     });
 
+    setTtlCacheValue("languages-banner", cacheKey, svg, BANNER_CACHE_TTL_MS);
+
     return new NextResponse(svg, {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+        "Cache-Control": BANNER_CACHE_CONTROL,
       },
     });
   } catch (err) {
