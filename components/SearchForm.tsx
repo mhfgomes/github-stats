@@ -1,34 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import DatePicker from "@/components/DatePicker";
+import DateRangePicker from "@/components/DateRangePicker";
 
 interface Props {
   onSearch: (username: string, from: string, to: string) => void;
-  loading: boolean;
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-export default function SearchForm({ onSearch, loading }: Props) {
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export default function SearchForm({ onSearch }: Props) {
   const [username, setUsername] = useState("");
-  const [from, setFrom] = useState(today());
-  const [to, setTo] = useState(today());
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    const date = today();
+    return { from: date, to: date };
+  });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!username.trim() || !range?.from) return;
+    const from = toIsoDate(range.from);
+    const to = toIsoDate(range.to ?? range.from);
     onSearch(username.trim(), from, to);
-  }
-
-  function handleFromChange(value: string) {
-    setFrom(value);
-    if (value > to) setTo(value);
   }
 
   return (
@@ -47,18 +54,15 @@ export default function SearchForm({ onSearch, loading }: Props) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>From</Label>
-          <DatePicker label="From date" value={from} onChange={handleFromChange} />
+          <Label>Date Range</Label>
+          <DateRangePicker
+            label="Date range"
+            value={range}
+            onChange={setRange}
+          />
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label>To</Label>
-          <DatePicker label="To date" value={to} onChange={setTo} min={from} />
-        </div>
-
-        <Button type="submit" disabled={loading}>
-          {loading ? "Loading…" : "Search"}
-        </Button>
+        <Button type="submit">Search</Button>
       </div>
     </form>
   );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStats } from "@/lib/stats-server";
+import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
 
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
 type RangeKey =
@@ -32,6 +33,8 @@ const DEFAULTS = {
 };
 
 const ALLOWED_ITEMS = new Set(["commits", "additions", "deletions", "net"]);
+const BANNER_CACHE_TTL_MS = 5 * 60 * 1000;
+const BANNER_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600";
 
 function escapeXml(s: string) {
   return s
@@ -253,6 +256,18 @@ export async function GET(req: NextRequest) {
   const items = rawItems.length > 0 ? rawItems : ["commits"];
 
   const top = parseIntParam(searchParams.get("top"), 3, 0, 6);
+  const cacheKey = req.nextUrl.search;
+
+  const cachedSvg = getTtlCacheValue<string>("stats-banner", cacheKey);
+  if (cachedSvg) {
+    return new NextResponse(cachedSvg, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Cache-Control": BANNER_CACHE_CONTROL,
+      },
+    });
+  }
 
   try {
     const stats = await resolveStats(username, from, to);
@@ -284,11 +299,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    setTtlCacheValue("stats-banner", cacheKey, svg, BANNER_CACHE_TTL_MS);
+
     return new NextResponse(svg, {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+        "Cache-Control": BANNER_CACHE_CONTROL,
       },
     });
   } catch (err) {

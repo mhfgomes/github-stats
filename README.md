@@ -7,7 +7,6 @@ A Next.js app that calculates daily GitHub activity for a user, including total 
 - Search by GitHub username and date range
 - Totals for commits, additions, and deletions
 - Per-repository stats with commit details
-- Optional Convex caching for past days to reduce GitHub API calls
 - Shareable SVG banner endpoint (`/api/banner`)
 - Light and dark theme toggle
 
@@ -16,7 +15,6 @@ A Next.js app that calculates daily GitHub activity for a user, including total 
 - Next.js (App Router) + React + TypeScript
 - Tailwind CSS + shadcn/ui components
 - GitHub REST API
-- Convex (optional cache layer)
 
 ## Getting Started
 
@@ -38,16 +36,10 @@ Copy `example.env` to `.env.local` and set values:
 
 ```env
 GITHUB_TOKEN=your_github_token
-
-# Optional (enable Convex caching)
-CONVEX_DEPLOYMENT=your_convex_deployment
-NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
-NEXT_PUBLIC_CONVEX_SITE_URL=https://your-project.convex.site
 ```
 
 Notes:
 - `GITHUB_TOKEN` is strongly recommended to avoid low unauthenticated rate limits.
-- If `NEXT_PUBLIC_CONVEX_URL` is not set, the app still works and fetches directly from GitHub.
 
 ### 3. Run locally
 
@@ -104,14 +96,13 @@ app/api/stats/      # JSON stats endpoint
 app/api/banner/     # SVG banner endpoint
 components/         # UI components
 lib/                # GitHub and server-side stats logic
-convex/             # Optional cache schema/functions
 ```
 
 ## Rate Limit and Caching
 
-- Without Convex, each request fetches directly from GitHub.
-- With Convex configured, past-day results are cached and reused.
-- The current day is always fetched fresh.
+- `/api/stats` fetches directly from GitHub on every request.
+- Banner endpoints keep a short in-memory TTL cache and send 5 minute cache headers.
+- `GITHUB_TOKEN` is recommended to avoid hitting GitHub rate limits.
 
 ## License
 
