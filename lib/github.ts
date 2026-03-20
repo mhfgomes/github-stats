@@ -12,21 +12,23 @@ function githubHeaders() {
 export interface CommitStats {
   sha: string;
   repo: string;
-  repoUrl: string;
+  repoUrl: string | null;
   message: string;
   date: string;
-  commitUrl: string;
+  commitUrl: string | null;
   additions: number;
   deletions: number;
+  isPrivate: boolean;
 }
 
 export interface RepoStats {
   repo: string;
-  repoUrl: string;
+  repoUrl: string | null;
   additions: number;
   deletions: number;
   commitCount: number;
   commits: CommitStats[];
+  isPrivate: boolean;
 }
 
 export interface DayStats {
@@ -42,6 +44,7 @@ export interface DayStats {
 interface GHRepo {
   full_name: string;
   pushed_at: string;
+  private: boolean;
 }
 
 interface GHCommit {
@@ -117,23 +120,25 @@ async function getCommitDetail(
 }
 
 async function fetchStats(
-  items: Array<{ fullName: string; commit: GHCommit }>,
+  items: Array<{ fullName: string; isPrivate: boolean; commit: GHCommit }>,
   concurrency = 20
 ): Promise<CommitStats[]> {
   const results: CommitStats[] = [];
   for (let i = 0; i < items.length; i += concurrency) {
     const batch = items.slice(i, i + concurrency);
     const settled = await Promise.allSettled(
-      batch.map(async ({ fullName, commit }) => {
+      batch.map(async ({ fullName, isPrivate, commit }) => {
         const stats = await getCommitDetail(fullName, commit.sha);
+        const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
         return {
-          sha: commit.sha,
-          repo: fullName,
-          repoUrl: commit.html_url.replace(`/commit/${commit.sha}`, ""),
-          message: commit.commit.message.split("\n")[0],
+          sha: isPrivate ? "PRIVATE" : commit.sha,
+          repo: isPrivate ? "PRIVATE" : fullName,
+          repoUrl: isPrivate ? null : repoUrl,
+          message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
           date: commit.commit.committer.date,
-          commitUrl: commit.html_url,
+          commitUrl: isPrivate ? null : commit.html_url,
           ...stats,
+          isPrivate,
         } satisfies CommitStats;
       })
     );
@@ -163,7 +168,13 @@ export async function fetchRawCommits(
       batch.map(async (repo) => {
         const commits = await getCommitsInRepo(repo.full_name, username, since, until);
         if (commits.length === 0) return [] as CommitStats[];
-        return fetchStats(commits.map((c) => ({ fullName: repo.full_name, commit: c })));
+        return fetchStats(
+          commits.map((c) => ({
+            fullName: repo.full_name,
+            isPrivate: repo.private,
+            commit: c,
+          }))
+        );
       })
     );
     for (const r of settled) {
@@ -190,6 +201,7 @@ export function aggregateCommits(
         deletions: 0,
         commitCount: 0,
         commits: [],
+        isPrivate: c.isPrivate,
       });
     }
     const r = repoMap.get(c.repo)!;
