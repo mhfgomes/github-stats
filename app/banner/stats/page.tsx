@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import ToggleRow from "@/components/ToggleRow";
+import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
 const ThemeToggle = dynamic(
@@ -259,17 +261,17 @@ export default function StatsBannerPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
+        <div className="flex items-start sm:items-center justify-between gap-3 mb-8">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <Button variant="ghost" size="sm" asChild className="shrink-0">
               <Link href="/banner">
                 <ArrowLeft className="h-4 w-4" />
-                Banners
+                <span className="hidden sm:inline">Banners</span>
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
                 Stats Banner
               </h1>
               <p className="text-muted-foreground text-sm">
@@ -281,7 +283,7 @@ export default function StatsBannerPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 order-2 lg:order-1">
             <Card className="gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -326,24 +328,16 @@ export default function StatsBannerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Show title</Label>
-                  <input
-                    type="checkbox"
-                    checked={config.showTitle}
-                    onChange={(e) => set("showTitle", e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Show subtitle</Label>
-                  <input
-                    type="checkbox"
-                    checked={config.showSubtitle}
-                    onChange={(e) => set("showSubtitle", e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </div>
+                <ToggleRow
+                  label="Show title"
+                  checked={config.showTitle}
+                  onChange={(v) => set("showTitle", v)}
+                />
+                <ToggleRow
+                  label="Show subtitle"
+                  checked={config.showSubtitle}
+                  onChange={(v) => set("showSubtitle", v)}
+                />
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="title">Title</Label>
                   <Input
@@ -351,6 +345,7 @@ export default function StatsBannerPage() {
                     value={config.title}
                     onChange={(e) => set("title", e.target.value)}
                     placeholder={`${config.username || "Your"} · GitHub stats`}
+                    disabled={!config.showTitle}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -360,47 +355,32 @@ export default function StatsBannerPage() {
                     value={config.subtitle}
                     onChange={(e) => set("subtitle", e.target.value)}
                     placeholder={`${rangeLabel(config.range)} · ${displayRange.from} → ${displayRange.to}`}
+                    disabled={!config.showSubtitle}
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   <Label className="text-sm">Stats to display</Label>
-                  <label className="flex items-center justify-between text-sm">
-                    Commits
-                    <input
-                      type="checkbox"
-                      checked={config.showCommits}
-                      onChange={(e) => set("showCommits", e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between text-sm">
-                    Additions
-                    <input
-                      type="checkbox"
-                      checked={config.showAdditions}
-                      onChange={(e) => set("showAdditions", e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between text-sm">
-                    Deletions
-                    <input
-                      type="checkbox"
-                      checked={config.showDeletions}
-                      onChange={(e) => set("showDeletions", e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between text-sm">
-                    Net
-                    <input
-                      type="checkbox"
-                      checked={config.showNet}
-                      onChange={(e) => set("showNet", e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                  </label>
+                  <ToggleRow
+                    label="Commits"
+                    checked={config.showCommits}
+                    onChange={(v) => set("showCommits", v)}
+                  />
+                  <ToggleRow
+                    label="Additions"
+                    checked={config.showAdditions}
+                    onChange={(v) => set("showAdditions", v)}
+                  />
+                  <ToggleRow
+                    label="Deletions"
+                    checked={config.showDeletions}
+                    onChange={(v) => set("showDeletions", v)}
+                  />
+                  <ToggleRow
+                    label="Net"
+                    checked={config.showNet}
+                    onChange={(v) => set("showNet", v)}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -442,27 +422,44 @@ export default function StatsBannerPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex flex-wrap gap-2">
-                  {PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      title={p.name}
-                      onClick={() =>
-                        setConfig((c) => ({
-                          ...c,
-                          gradientFrom: p.from,
-                          gradientTo: p.to,
-                          textColor: p.text,
-                          mutedColor: p.muted,
-                          accentColor: p.accent,
-                        }))
-                      }
-                      className="w-7 h-7 rounded-full border-2 border-transparent hover:border-ring hover:scale-110 transition-all"
-                      style={{
-                        background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
-                      }}
-                    />
-                  ))}
+                <div className="flex flex-wrap gap-2" role="listbox" aria-label="Color presets">
+                  {PRESETS.map((p) => {
+                    const selected =
+                      config.gradientFrom === p.from &&
+                      config.gradientTo === p.to &&
+                      config.textColor === p.text &&
+                      config.mutedColor === p.muted &&
+                      config.accentColor === p.accent;
+                    return (
+                      <button
+                        key={p.name}
+                        type="button"
+                        title={p.name}
+                        aria-label={`${p.name} preset`}
+                        aria-selected={selected}
+                        role="option"
+                        onClick={() =>
+                          setConfig((c) => ({
+                            ...c,
+                            gradientFrom: p.from,
+                            gradientTo: p.to,
+                            textColor: p.text,
+                            mutedColor: p.muted,
+                            accentColor: p.accent,
+                          }))
+                        }
+                        className={cn(
+                          "w-7 h-7 rounded-full border-2 transition-all",
+                          selected
+                            ? "border-foreground scale-110 ring-2 ring-ring/40"
+                            : "border-transparent hover:border-ring hover:scale-110"
+                        )}
+                        style={{
+                          background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
+                        }}
+                      />
+                    );
+                  })}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -556,7 +553,7 @@ export default function StatsBannerPage() {
             </Card>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 order-1 lg:order-2 lg:sticky lg:top-6">
             <Card className="gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -2,7 +2,13 @@ import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import RepoCard from "./RepoCard";
-import { FilePlusCorner, FileMinusCorner, Activity, GitCommitHorizontal } from "lucide-react";
+import {
+  FilePlusCorner,
+  FileMinusCorner,
+  Activity,
+  GitCommitHorizontal,
+  Inbox,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 function StatCard({
@@ -19,12 +25,12 @@ function StatCard({
   className?: string;
 }) {
   return (
-    <Card className="gap-1 px-6 py-5" style={{ containerType: "inline-size" }}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+    <Card className="gap-1 px-4 sm:px-6 py-4 sm:py-5" style={{ containerType: "inline-size" }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium truncate">
           {label}
         </span>
-        <Icon className="w-4 h-4 text-muted-foreground" />
+        <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
       </div>
       <span
         className={`font-bold font-mono leading-tight ${className}`}
@@ -44,7 +50,12 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
   const netChange = `${net >= 0 ? "+" : ""}${net.toLocaleString("en-US")}`;
   const commits = stats.totalCommits.toLocaleString("en-US");
 
-  const maxLen = Math.max(additions.length, deletions.length, netChange.length, commits.length);
+  const maxLen = Math.max(
+    additions.length,
+    deletions.length,
+    netChange.length,
+    commits.length
+  );
   const cqw = Math.min(28, Math.floor(110 / maxLen));
 
   return (
@@ -52,7 +63,9 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
       <div>
         <p className="text-muted-foreground text-sm mb-4">
           Stats for{" "}
-          <span className="text-foreground font-semibold">@{stats.username}</span>
+          <span className="text-foreground font-semibold">
+            @{stats.username}
+          </span>
           {" · "}
           {stats.from === stats.to ? (
             <span>{stats.from}</span>
@@ -102,9 +115,15 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
       <Separator />
 
       {stats.repos.length === 0 ? (
-        <p className="text-muted-foreground text-center py-8">
-          No commits found for this period.
-        </p>
+        <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Inbox className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No commits in this period</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Try a wider date range, or confirm the username is correct.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">

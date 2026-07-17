@@ -28,7 +28,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
             aria-expanded={open}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -48,7 +48,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0 ml-4">
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-3 sm:ml-4">
               <span className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                 +{repo.additions.toLocaleString("en-US")}
               </span>
