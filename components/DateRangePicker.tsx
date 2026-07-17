@@ -35,7 +35,7 @@ export default function DateRangePicker({ label, value, onChange }: Props) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="w-[280px] justify-start gap-2 text-left font-normal"
+          className="w-full sm:w-[280px] justify-start gap-2 text-left font-normal"
           aria-label={label}
         >
           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
