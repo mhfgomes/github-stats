@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
 const ThemeToggle = dynamic(
@@ -164,17 +165,17 @@ export default function LangsBannerPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
+        <div className="flex items-start sm:items-center justify-between gap-3 mb-8">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <Button variant="ghost" size="sm" asChild className="shrink-0">
               <Link href="/banner">
                 <ArrowLeft className="h-4 w-4" />
-                Banners
+                <span className="hidden sm:inline">Banners</span>
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
                 Languages Banner
               </h1>
               <p className="text-muted-foreground text-sm">
@@ -186,7 +187,7 @@ export default function LangsBannerPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 order-2 lg:order-1">
             <Card className="gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -242,26 +243,42 @@ export default function LangsBannerPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex flex-wrap gap-2">
-                  {PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      title={p.name}
-                      onClick={() =>
-                        setConfig((c) => ({
-                          ...c,
-                          gradientFrom: p.from,
-                          gradientTo: p.to,
-                          textColor: p.text,
-                          mutedColor: p.muted,
-                        }))
-                      }
-                      className="w-7 h-7 rounded-full border-2 border-transparent hover:border-ring hover:scale-110 transition-all"
-                      style={{
-                        background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
-                      }}
-                    />
-                  ))}
+                <div className="flex flex-wrap gap-2" role="listbox" aria-label="Color presets">
+                  {PRESETS.map((p) => {
+                    const selected =
+                      config.gradientFrom === p.from &&
+                      config.gradientTo === p.to &&
+                      config.textColor === p.text &&
+                      config.mutedColor === p.muted;
+                    return (
+                      <button
+                        key={p.name}
+                        type="button"
+                        title={p.name}
+                        aria-label={`${p.name} preset`}
+                        aria-selected={selected}
+                        role="option"
+                        onClick={() =>
+                          setConfig((c) => ({
+                            ...c,
+                            gradientFrom: p.from,
+                            gradientTo: p.to,
+                            textColor: p.text,
+                            mutedColor: p.muted,
+                          }))
+                        }
+                        className={cn(
+                          "w-7 h-7 rounded-full border-2 transition-all",
+                          selected
+                            ? "border-foreground scale-110 ring-2 ring-ring/40"
+                            : "border-transparent hover:border-ring hover:scale-110"
+                        )}
+                        style={{
+                          background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
+                        }}
+                      />
+                    );
+                  })}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -350,7 +367,7 @@ export default function LangsBannerPage() {
             </Card>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 order-1 lg:order-2 lg:sticky lg:top-6">
             <Card className="gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

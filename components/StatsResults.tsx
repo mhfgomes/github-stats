@@ -1,31 +1,15 @@
 "use client";
 
-import { Component, Suspense, use, useEffect, useRef } from "react";
+import { Component, Suspense, use } from "react";
+import { AlertCircle } from "lucide-react";
 import type { DayStats } from "@/lib/github";
 import StatsDisplay from "@/components/StatsDisplay";
 import StatsSkeleton from "@/components/StatsSkeleton";
-import { useToast } from "@/components/ToastProvider";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 function StatsContent({ promise }: { promise: Promise<DayStats> }) {
   const stats = use(promise);
   return <StatsDisplay stats={stats} />;
-}
-
-function ErrorToast({ message }: { message: string }) {
-  const { toast } = useToast();
-  const didToast = useRef(false);
-
-  useEffect(() => {
-    if (didToast.current) return;
-    didToast.current = true;
-    toast({
-      title: "Failed to fetch stats",
-      description: message,
-      tone: "destructive",
-    });
-  }, [message, toast]);
-
-  return null;
 }
 
 class StatsErrorBoundary extends Component<
@@ -50,6 +34,22 @@ class StatsErrorBoundary extends Component<
   }
 }
 
+function StatsError({ message }: { message: string }) {
+  return (
+    <Alert variant="destructive">
+      <AlertCircle />
+      <AlertTitle>Couldn&apos;t load stats</AlertTitle>
+      <AlertDescription>
+        <p>{message}</p>
+        <p className="mt-1 text-muted-foreground">
+          Check the username, try a shorter date range, or try again in a
+          moment.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export default function StatsResults({
   requestKey,
   promise,
@@ -61,8 +61,10 @@ export default function StatsResults({
     <StatsErrorBoundary
       key={requestKey}
       fallback={(error) => (
-        <ErrorToast
-          message={error.message || "Something went wrong while fetching stats."}
+        <StatsError
+          message={
+            error.message || "Something went wrong while fetching stats."
+          }
         />
       )}
     >

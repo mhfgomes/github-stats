@@ -16,17 +16,17 @@ export default function BannerIndexPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
+        <div className="flex items-start sm:items-center justify-between gap-3 mb-8">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <Button variant="ghost" size="sm" asChild className="shrink-0">
               <Link href="/">
                 <ArrowLeft className="h-4 w-4" />
-                Stats
+                <span className="hidden sm:inline">Stats</span>
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
                 Banner Generator
               </h1>
               <p className="text-muted-foreground text-sm">
@@ -38,8 +38,8 @@ export default function BannerIndexPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link href="/banner/stats" className="group">
-            <Card className="h-full transition-colors hover:border-ring cursor-pointer">
+          <Link href="/banner/stats" className="group block focus-visible:outline-none">
+            <Card className="h-full transition-colors hover:border-ring group-focus-visible:border-ring group-focus-visible:ring-2 group-focus-visible:ring-ring/40 cursor-pointer">
               <CardContent className="p-6 flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
@@ -51,15 +51,15 @@ export default function BannerIndexPage() {
                   Commits, additions and deletions for any date range. Embed in
                   your README or profile.
                 </p>
-                <span className="text-sm font-medium text-primary mt-auto">
+                <span className="text-sm font-medium text-primary mt-auto group-hover:underline underline-offset-4">
                   Open →
                 </span>
               </CardContent>
             </Card>
           </Link>
 
-          <Link href="/banner/langs" className="group">
-            <Card className="h-full transition-colors hover:border-ring cursor-pointer">
+          <Link href="/banner/langs" className="group block focus-visible:outline-none">
+            <Card className="h-full transition-colors hover:border-ring group-focus-visible:border-ring group-focus-visible:ring-2 group-focus-visible:ring-ring/40 cursor-pointer">
               <CardContent className="p-6 flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
@@ -71,7 +71,7 @@ export default function BannerIndexPage() {
                   Most used programming languages all time, calculated from all
                   your repositories.
                 </p>
-                <span className="text-sm font-medium text-primary mt-auto">
+                <span className="text-sm font-medium text-primary mt-auto group-hover:underline underline-offset-4">
                   Open →
                 </span>
               </CardContent>

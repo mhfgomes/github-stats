@@ -20,7 +20,11 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="gap-0 py-0 overflow-hidden">
         <CollapsibleTrigger asChild>
-          <button className="w-full flex items-center justify-between px-5 py-4 hover:bg-accent/40 transition-colors text-left">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            aria-expanded={open}
+          >
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 {isPrivateRepo && (
@@ -37,15 +41,16 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0 ml-4">
-              <span className="text-sm font-mono font-semibold text-emerald-400">
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-3 sm:ml-4">
+              <span className="text-sm font-mono font-semibold text-emerald-600 dark:text-emerald-400">
                 +{repo.additions.toLocaleString("en-US")}
               </span>
-              <span className="text-sm font-mono font-semibold text-red-400">
+              <span className="text-sm font-mono font-semibold text-red-600 dark:text-red-400">
                 -{repo.deletions.toLocaleString("en-US")}
               </span>
               <ChevronDown
                 className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                aria-hidden
               />
             </div>
           </button>
@@ -65,7 +70,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                       href={c.commitUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-violet-400 transition-colors truncate block"
+                      className="text-sm text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-colors truncate block"
                     >
                       {c.message}
                     </a>
@@ -84,10 +89,10 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                   </span>
                 </div>
                 <div className="flex gap-3 shrink-0 text-sm font-mono">
-                  <span className="text-emerald-400">
+                  <span className="text-emerald-600 dark:text-emerald-400">
                     +{c.additions.toLocaleString("en-US")}
                   </span>
-                  <span className="text-red-400">
+                  <span className="text-red-600 dark:text-red-400">
                     -{c.deletions.toLocaleString("en-US")}
                   </span>
                 </div>
