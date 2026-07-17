@@ -1,74 +1,35 @@
 "use client";
 
-import { Component, Suspense, use, useEffect, useRef } from "react";
 import type { DayStats } from "@/lib/github";
 import StatsDisplay from "@/components/StatsDisplay";
 import StatsSkeleton from "@/components/StatsSkeleton";
-import { useToast } from "@/components/ToastProvider";
+import StatsError from "@/components/StatsError";
+import EmptyState from "@/components/EmptyState";
 
-function StatsContent({ promise }: { promise: Promise<DayStats> }) {
-  const stats = use(promise);
-  return <StatsDisplay stats={stats} />;
+export type StatsStatus =
+  | { type: "idle" }
+  | { type: "loading" }
+  | { type: "success"; stats: DayStats }
+  | { type: "error"; message: string };
+
+interface Props {
+  status: StatsStatus;
+  onRetry: () => void;
+  onExample: (username: string) => void;
 }
 
-function ErrorToast({ message }: { message: string }) {
-  const { toast } = useToast();
-  const didToast = useRef(false);
-
-  useEffect(() => {
-    if (didToast.current) return;
-    didToast.current = true;
-    toast({
-      title: "Failed to fetch stats",
-      description: message,
-      tone: "destructive",
-    });
-  }, [message, toast]);
-
-  return null;
-}
-
-class StatsErrorBoundary extends Component<
-  {
-    children: React.ReactNode;
-    fallback: (error: Error) => React.ReactNode;
-  },
-  { error: Error | null }
-> {
-  state = { error: null };
-
-  static getDerivedStateFromError(error: Error) {
-    return { error };
+export default function StatsResults({ status, onRetry, onExample }: Props) {
+  if (status.type === "idle") {
+    return <EmptyState onExample={onExample} />;
   }
 
-  render() {
-    if (this.state.error) {
-      return this.props.fallback(this.state.error);
-    }
-
-    return this.props.children;
+  if (status.type === "loading") {
+    return <StatsSkeleton />;
   }
-}
 
-export default function StatsResults({
-  requestKey,
-  promise,
-}: {
-  requestKey: string;
-  promise: Promise<DayStats>;
-}) {
-  return (
-    <StatsErrorBoundary
-      key={requestKey}
-      fallback={(error) => (
-        <ErrorToast
-          message={error.message || "Something went wrong while fetching stats."}
-        />
-      )}
-    >
-      <Suspense fallback={<StatsSkeleton />}>
-        <StatsContent promise={promise} />
-      </Suspense>
-    </StatsErrorBoundary>
-  );
+  if (status.type === "error") {
+    return <StatsError message={status.message} onRetry={onRetry} />;
+  }
+
+  return <StatsDisplay stats={status.stats} />;
 }

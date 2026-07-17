@@ -27,16 +27,23 @@ interface Props {
   label: string;
   value: DateRange | undefined;
   onChange: (value: DateRange | undefined) => void;
+  disabled?: boolean;
 }
 
-export default function DateRangePicker({ label, value, onChange }: Props) {
+export default function DateRangePicker({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: Props) {
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="w-[280px] justify-start gap-2 text-left font-normal"
+          className="w-full sm:w-[280px] justify-start gap-2 text-left font-normal"
           aria-label={label}
+          disabled={disabled}
         >
           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
           <span className={!value?.from ? "text-muted-foreground" : undefined}>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,10 @@ import DateRangePicker from "@/components/DateRangePicker";
 
 interface Props {
   onSearch: (username: string, from: string, to: string) => void;
+  loading?: boolean;
+  initialUsername?: string;
+  initialFrom?: string;
+  initialTo?: string;
 }
 
 function today() {
@@ -23,16 +28,41 @@ function toIsoDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export default function SearchForm({ onSearch }: Props) {
-  const [username, setUsername] = useState("");
+function parseIsoDate(value: string | undefined) {
+  if (!value) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return undefined;
+  }
+  return date;
+}
+
+export default function SearchForm({
+  onSearch,
+  loading = false,
+  initialUsername = "",
+  initialFrom,
+  initialTo,
+}: Props) {
+  const [username, setUsername] = useState(initialUsername);
   const [range, setRange] = useState<DateRange | undefined>(() => {
-    const date = today();
-    return { from: date, to: date };
+    const from = parseIsoDate(initialFrom) ?? today();
+    const to = parseIsoDate(initialTo) ?? from;
+    return { from, to };
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!username.trim() || !range?.from) return;
+    if (loading || !username.trim() || !range?.from) return;
     const from = toIsoDate(range.from);
     const to = toIsoDate(range.to ?? range.from);
     onSearch(username.trim(), from, to);
@@ -41,7 +71,7 @@ export default function SearchForm({ onSearch }: Props) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col sm:flex-row gap-4 items-end">
-        <div className="flex-1 flex flex-col gap-1.5">
+        <div className="flex-1 flex flex-col gap-1.5 w-full">
           <Label htmlFor="username">GitHub Username</Label>
           <Input
             id="username"
@@ -50,19 +80,35 @@ export default function SearchForm({ onSearch }: Props) {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="e.g. torvalds"
             required
+            disabled={loading}
+            autoComplete="username"
           />
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 w-full sm:w-auto">
           <Label>Date Range</Label>
           <DateRangePicker
             label="Date range"
             value={range}
             onChange={setRange}
+            disabled={loading}
           />
         </div>
 
-        <Button type="submit">Search</Button>
+        <Button
+          type="submit"
+          disabled={loading || !username.trim()}
+          className="w-full sm:w-auto"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Searching
+            </>
+          ) : (
+            "Search"
+          )}
+        </Button>
       </div>
     </form>
   );
