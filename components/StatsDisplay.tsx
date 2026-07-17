@@ -92,7 +92,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             className="text-red-700 dark:text-red-400"
           />
           <StatCard
-            label="Net change"
+            label="Delta"
             value={netChange}
             cqw={cqw}
             icon={Activity}
