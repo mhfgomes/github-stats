@@ -60,8 +60,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               "pointer-events-auto rounded-xl border bg-background/95 p-4 shadow-lg backdrop-blur",
               item.tone === "destructive" && "border-destructive/50"
             )}
-            role="status"
-            aria-live="polite"
+            role={item.tone === "destructive" ? "alert" : "status"}
+            aria-live={item.tone === "destructive" ? "assertive" : "polite"}
           >
             <div className="flex items-start gap-3">
               <AlertCircle

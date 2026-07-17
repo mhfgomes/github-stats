@@ -82,14 +82,14 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             value={additions}
             cqw={cqw}
             icon={FilePlusCorner}
-            className="text-emerald-600 dark:text-emerald-400"
+            className="text-emerald-700 dark:text-emerald-400"
           />
           <StatCard
             label="Deletions"
             value={deletions}
             cqw={cqw}
             icon={FileMinusCorner}
-            className="text-red-600 dark:text-red-400"
+            className="text-red-700 dark:text-red-400"
           />
           <StatCard
             label="Net change"
@@ -98,8 +98,8 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             icon={Activity}
             className={
               net >= 0
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-red-600 dark:text-red-400"
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-red-700 dark:text-red-400"
             }
           />
           <StatCard
@@ -107,7 +107,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             value={commits}
             cqw={cqw}
             icon={GitCommitHorizontal}
-            className="text-violet-600 dark:text-violet-400"
+            className="text-violet-700 dark:text-violet-400"
           />
         </div>
       </div>
