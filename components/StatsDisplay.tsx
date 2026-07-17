@@ -64,16 +64,38 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Additions" value={additions} cqw={cqw} icon={FilePlusCorner} className="text-emerald-400" />
-          <StatCard label="Deletions" value={deletions} cqw={cqw} icon={FileMinusCorner} className="text-red-400" />
+          <StatCard
+            label="Additions"
+            value={additions}
+            cqw={cqw}
+            icon={FilePlusCorner}
+            className="text-emerald-700 dark:text-emerald-400"
+          />
+          <StatCard
+            label="Deletions"
+            value={deletions}
+            cqw={cqw}
+            icon={FileMinusCorner}
+            className="text-red-700 dark:text-red-400"
+          />
           <StatCard
             label="Net change"
             value={netChange}
             cqw={cqw}
             icon={Activity}
-            className={net >= 0 ? "text-emerald-400" : "text-red-400"}
+            className={
+              net >= 0
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-red-700 dark:text-red-400"
+            }
           />
-          <StatCard label="Commits" value={commits} cqw={cqw} icon={GitCommitHorizontal} className="text-violet-400" />
+          <StatCard
+            label="Commits"
+            value={commits}
+            cqw={cqw}
+            icon={GitCommitHorizontal}
+            className="text-violet-700 dark:text-violet-400"
+          />
         </div>
       </div>
 

@@ -119,6 +119,16 @@ async function getCommitDetail(
   };
 }
 
+/** Opaque stable id so private repos stay distinct without revealing names. */
+function privateRepoId(fullName: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < fullName.length; i++) {
+    hash ^= fullName.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36).padStart(6, "0").slice(0, 6);
+}
+
 async function fetchStats(
   items: Array<{ fullName: string; isPrivate: boolean; commit: GHCommit }>,
   concurrency = 20
@@ -131,8 +141,8 @@ async function fetchStats(
         const stats = await getCommitDetail(fullName, commit.sha);
         const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
         return {
-          sha: isPrivate ? "PRIVATE" : commit.sha,
-          repo: isPrivate ? "PRIVATE" : fullName,
+          sha: isPrivate ? `private:${commit.sha.slice(0, 7)}` : commit.sha,
+          repo: isPrivate ? `private:${privateRepoId(fullName)}` : fullName,
           repoUrl: isPrivate ? null : repoUrl,
           message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
           date: commit.commit.committer.date,

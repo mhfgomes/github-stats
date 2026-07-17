@@ -16,16 +16,16 @@ export default function BannerIndexPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-8 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/">
                 <ArrowLeft className="h-4 w-4" />
                 Stats
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <div>
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight">
                 Banner Generator
               </h1>
