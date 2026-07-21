@@ -28,10 +28,10 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            className="w-full flex flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-accent/40 sm:flex-row sm:items-center sm:justify-between sm:px-5"
             aria-expanded={open}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
               <div className="flex items-center gap-2 min-w-0">
                 {isPrivateRepo && (
                   <span
@@ -48,7 +48,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-3 sm:ml-4">
+            <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/60 pt-3 sm:ml-4 sm:justify-end sm:border-0 sm:pt-0">
               <span className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                 +{repo.additions.toLocaleString("en-US")}
               </span>
@@ -69,7 +69,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
             {repo.commits.map((c, index) => (
               <div
                 key={`${repo.repo}-${c.sha}-${c.date}-${index}`}
-                className="flex items-start justify-between px-5 py-3 gap-4"
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-5"
               >
                 <div className="min-w-0 flex-1">
                   {c.commitUrl ? (
@@ -97,7 +97,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                     {c.isPrivate ? "SHA hidden" : c.sha.slice(0, 7)}
                   </span>
                 </div>
-                <div className="flex gap-3 shrink-0 text-sm font-mono">
+                <div className="flex shrink-0 gap-3 text-sm font-mono">
                   <span className="text-emerald-700 dark:text-emerald-400">
                     +{c.additions.toLocaleString("en-US")}
                   </span>
