@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ToastProvider";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
@@ -117,6 +118,7 @@ export default function LangsBannerPage() {
   const [config, setConfig] = useState<LangsConfig>(DEFAULT_CONFIG);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
+  const { toast } = useToast();
 
   const set = useCallback(
     <K extends keyof LangsConfig>(key: K, value: LangsConfig[K]) =>
@@ -146,9 +148,21 @@ export default function LangsBannerPage() {
     : `![Most Used Languages](${origin}/api/languages-banner?username=USERNAME)`;
 
   async function copy(type: "api" | "md") {
-    await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
+      toast({
+        title: type === "api" ? "API link copied" : "README snippet copied",
+        description: "Paste it into your README or profile.",
+      });
+    } catch {
+      toast({
+        title: "Couldn't copy to clipboard",
+        description: "Copy it manually from the box below.",
+        tone: "destructive",
+      });
+    }
   }
 
   function randomPreset() {

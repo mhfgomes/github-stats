@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ToggleRow from "@/components/ToggleRow";
+import { useToast } from "@/components/ToastProvider";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
@@ -195,6 +196,7 @@ export default function StatsBannerPage() {
   const [config, setConfig] = useState<BannerConfig>(DEFAULT_CONFIG);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
+  const { toast } = useToast();
 
   const set = useCallback(
     <K extends keyof BannerConfig>(key: K, value: BannerConfig[K]) =>
@@ -241,9 +243,21 @@ export default function StatsBannerPage() {
     : `![GitHub stats banner](${origin}/api/banner?username=USERNAME)`;
 
   async function copy(type: "api" | "md") {
-    await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
+      toast({
+        title: type === "api" ? "API link copied" : "README snippet copied",
+        description: "Paste it into your README or profile.",
+      });
+    } catch {
+      toast({
+        title: "Couldn't copy to clipboard",
+        description: "Copy it manually from the box below.",
+        tone: "destructive",
+      });
+    }
   }
 
   function randomPreset() {
