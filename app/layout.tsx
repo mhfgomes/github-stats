@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Analytics } from "@vercel/analytics/next";
 import { ToastProvider } from "@/components/ToastProvider";
+import SiteFooter from "@/components/SiteFooter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,9 +35,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="dark">
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            {children}
+            <SiteFooter />
+          </ToastProvider>
         </ThemeProvider>
         <Analytics />
       </body>
