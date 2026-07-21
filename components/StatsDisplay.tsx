@@ -58,6 +58,11 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
   );
   const cqw = Math.min(28, Math.floor(110 / maxLen));
 
+  const maxRepoChanges = stats.repos.reduce(
+    (max, r) => Math.max(max, r.additions + r.deletions),
+    0
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -130,7 +135,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             Repositories ({stats.repos.length})
           </p>
           {stats.repos.map((r) => (
-            <RepoCard key={r.repo} repo={r} />
+            <RepoCard key={r.repo} repo={r} maxChanges={maxRepoChanges} />
           ))}
         </div>
       )}
