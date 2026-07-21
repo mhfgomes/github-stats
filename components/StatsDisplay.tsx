@@ -107,7 +107,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             value={commits}
             cqw={cqw}
             icon={GitCommitHorizontal}
-            className="text-violet-700 dark:text-violet-400"
+            className="text-brand"
           />
         </div>
       </div>

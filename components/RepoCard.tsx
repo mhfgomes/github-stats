@@ -77,7 +77,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                       href={c.commitUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-violet-700 dark:hover:text-violet-400 transition-colors truncate block"
+                      className="text-sm text-muted-foreground hover:text-brand transition-colors truncate block"
                     >
                       {c.message}
                     </a>
