@@ -11,6 +11,16 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+/** Formats "YYYY-MM-DD" as e.g. "Feb 3, 2026" to match the date picker. */
+function formatIsoDate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function StatCard({
   label,
   value,
@@ -68,10 +78,10 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
           </span>
           {" · "}
           {stats.from === stats.to ? (
-            <span>{stats.from}</span>
+            <span>{formatIsoDate(stats.from)}</span>
           ) : (
             <span>
-              {stats.from} → {stats.to}
+              {formatIsoDate(stats.from)} → {formatIsoDate(stats.to)}
             </span>
           )}
         </p>
