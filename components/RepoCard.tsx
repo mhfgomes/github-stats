@@ -28,37 +28,48 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            className="w-full min-h-11 px-4 sm:px-5 py-3.5 sm:py-4 hover:bg-accent/40 transition-colors text-left"
             aria-expanded={open}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                {isPrivateRepo && (
-                  <span
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                    aria-hidden
-                  >
-                    <Lock className="h-3.5 w-3.5" />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 min-w-0 sm:items-center sm:gap-3">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {isPrivateRepo && (
+                    <span
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                      aria-hidden
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                  <span className="text-sm font-medium truncate block">
+                    {title}
                   </span>
-                )}
-                <span className="text-sm font-medium truncate block">{title}</span>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform sm:hidden ${open ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
               </div>
-              <Badge variant="secondary" className="shrink-0">
-                {repo.commitCount} commit{repo.commitCount !== 1 ? "s" : ""}
-              </Badge>
-            </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-3 sm:ml-4">
-              <span className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">
-                +{repo.additions.toLocaleString("en-US")}
-              </span>
-              <span className="text-sm font-mono font-semibold text-red-700 dark:text-red-400">
-                -{repo.deletions.toLocaleString("en-US")}
-              </span>
-              <ChevronDown
-                className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-                aria-hidden
-              />
+              <div className="flex items-center justify-between gap-3 sm:justify-end sm:gap-4 sm:shrink-0 sm:ml-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="shrink-0">
+                    {repo.commitCount} commit
+                    {repo.commitCount !== 1 ? "s" : ""}
+                  </Badge>
+                  <span className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                    +{repo.additions.toLocaleString("en-US")}
+                  </span>
+                  <span className="text-sm font-mono font-semibold text-red-700 dark:text-red-400">
+                    -{repo.deletions.toLocaleString("en-US")}
+                  </span>
+                </div>
+                <ChevronDown
+                  className={`hidden w-4 h-4 text-muted-foreground transition-transform sm:block ${open ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+              </div>
             </div>
           </button>
         </CollapsibleTrigger>
@@ -69,7 +80,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
             {repo.commits.map((c, index) => (
               <div
                 key={`${repo.repo}-${c.sha}-${c.date}-${index}`}
-                className="flex items-start justify-between px-5 py-3 gap-4"
+                className="flex flex-col gap-2 px-4 sm:px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
               >
                 <div className="min-w-0 flex-1">
                   {c.commitUrl ? (
@@ -77,19 +88,23 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                       href={c.commitUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-violet-700 dark:hover:text-violet-400 transition-colors truncate block"
+                      className="text-sm text-muted-foreground hover:text-violet-700 dark:hover:text-violet-400 transition-colors line-clamp-2 sm:truncate sm:block"
                     >
                       {c.message}
+                      <span className="sr-only"> (opens in new tab)</span>
                     </a>
                   ) : c.isPrivate ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Lock className="h-3.5 w-3.5 text-amber-700/80 dark:text-amber-300/80" aria-hidden />
+                      <Lock
+                        className="h-3.5 w-3.5 text-amber-700/80 dark:text-amber-300/80"
+                        aria-hidden
+                      />
                       <span className="truncate">
                         Commit details hidden for private repository
                       </span>
                     </div>
                   ) : (
-                    <span className="text-sm text-muted-foreground truncate block">
+                    <span className="text-sm text-muted-foreground line-clamp-2 sm:truncate sm:block">
                       {c.message}
                     </span>
                   )}
