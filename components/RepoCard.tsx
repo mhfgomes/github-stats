@@ -22,6 +22,9 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
   const isPrivateRepo = repo.isPrivate;
   const title = isPrivateRepo ? privateRepoLabel(repo.repo) : repo.repo;
 
+  const churn = repo.additions + repo.deletions;
+  const additionsPct = churn > 0 ? (repo.additions / churn) * 100 : 0;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="gap-0 py-0 overflow-hidden">
@@ -62,6 +65,25 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
             </div>
           </button>
         </CollapsibleTrigger>
+
+        <div
+          className="flex h-1 w-full overflow-hidden bg-muted"
+          role="img"
+          aria-label={`${repo.additions.toLocaleString("en-US")} additions, ${repo.deletions.toLocaleString("en-US")} deletions`}
+        >
+          {churn > 0 && (
+            <>
+              <span
+                className="h-full bg-emerald-500/80"
+                style={{ width: `${additionsPct}%` }}
+              />
+              <span
+                className="h-full bg-red-500/80"
+                style={{ width: `${100 - additionsPct}%` }}
+              />
+            </>
+          )}
+        </div>
 
         <CollapsibleContent>
           <Separator />
