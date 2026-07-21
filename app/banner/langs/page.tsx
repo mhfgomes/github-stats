@@ -243,7 +243,11 @@ export default function LangsBannerPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex flex-wrap gap-2" role="listbox" aria-label="Color presets">
+                <div
+                  className="grid grid-cols-2 gap-2"
+                  role="listbox"
+                  aria-label="Color presets"
+                >
                   {PRESETS.map((p) => {
                     const selected =
                       config.gradientFrom === p.from &&
@@ -268,15 +272,21 @@ export default function LangsBannerPage() {
                           }))
                         }
                         className={cn(
-                          "w-7 h-7 rounded-full border-2 transition-all",
+                          "flex h-11 min-w-0 items-center gap-2 rounded-md border px-2.5 text-left text-xs font-medium transition-colors",
                           selected
-                            ? "border-foreground scale-110 ring-2 ring-ring/40"
-                            : "border-transparent hover:border-ring hover:scale-110"
+                            ? "border-foreground bg-accent ring-2 ring-ring/40"
+                            : "border-border hover:border-ring hover:bg-accent/50"
                         )}
-                        style={{
-                          background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
-                        }}
-                      />
+                      >
+                        <span
+                          className="size-5 shrink-0 rounded-full border border-white/20 shadow-sm"
+                          style={{
+                            background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
+                          }}
+                          aria-hidden
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </button>
                     );
                   })}
                 </div>
