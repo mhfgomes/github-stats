@@ -17,8 +17,18 @@ function privateRepoLabel(repo: string) {
   return `Private repository · ${id}`;
 }
 
-export default function RepoCard({ repo }: { repo: RepoStats }) {
-  const [open, setOpen] = useState(false);
+export default function RepoCard({
+  repo,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  repo: RepoStats;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const isPrivateRepo = repo.isPrivate;
   const title = isPrivateRepo ? privateRepoLabel(repo.repo) : repo.repo;
 
@@ -28,11 +38,11 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
             aria-expanded={open}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 {isPrivateRepo && (
                   <span
                     className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
@@ -48,7 +58,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0 ml-3 sm:ml-4">
+            <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 w-full sm:w-auto sm:ml-4">
               <span className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                 +{repo.additions.toLocaleString("en-US")}
               </span>
@@ -56,7 +66,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                 -{repo.deletions.toLocaleString("en-US")}
               </span>
               <ChevronDown
-                className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                className={`w-4 h-4 text-muted-foreground transition-transform sm:ml-0 ml-auto ${open ? "rotate-180" : ""}`}
                 aria-hidden
               />
             </div>

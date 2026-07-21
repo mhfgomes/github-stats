@@ -1,7 +1,7 @@
 import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import RepoCard from "./RepoCard";
+import RepoList from "./RepoList";
 import {
   FilePlusCorner,
   FileMinusCorner,
@@ -125,14 +125,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-            Repositories ({stats.repos.length})
-          </p>
-          {stats.repos.map((r) => (
-            <RepoCard key={r.repo} repo={r} />
-          ))}
-        </div>
+        <RepoList repos={stats.repos} />
       )}
     </div>
   );
