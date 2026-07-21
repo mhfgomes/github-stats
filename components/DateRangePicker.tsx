@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("en-US", {
@@ -19,7 +21,9 @@ function formatDate(date: Date) {
 
 function formatRange(range: DateRange | undefined) {
   if (!range?.from) return "Pick a date range";
-  if (!range.to) return formatDate(range.from);
+  if (!range.to || range.to.getTime() === range.from.getTime()) {
+    return formatDate(range.from);
+  }
   return `${formatDate(range.from)} - ${formatDate(range.to)}`;
 }
 
@@ -36,8 +40,24 @@ export default function DateRangePicker({
   onChange,
   disabled = false,
 }: Props) {
+  const [open, setOpen] = useState(false);
+
+  function handleSelect(range: DateRange | undefined) {
+    onChange(range);
+    // A distinct start and end means the selection is complete; close so the
+    // user immediately sees the updated value. Single-day picks keep the
+    // popover open (the second click could still extend the range).
+    if (
+      range?.from &&
+      range.to &&
+      range.from.getTime() !== range.to.getTime()
+    ) {
+      setOpen(false);
+    }
+  }
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -61,10 +81,27 @@ export default function DateRangePicker({
         <Calendar
           mode="range"
           selected={value}
-          onSelect={onChange}
+          onSelect={handleSelect}
           autoFocus
           disabled={{ after: new Date() }}
         />
+        <Separator />
+        <div className="flex items-center justify-between px-3 py-2">
+          <p className="text-xs text-muted-foreground">
+            {value?.from
+              ? formatRange(value)
+              : "Select a start and end day"}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setOpen(false)}
+          >
+            Done
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );
