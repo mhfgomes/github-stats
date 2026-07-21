@@ -21,7 +21,11 @@ import dynamic from "next/dynamic";
 
 const ThemeToggle = dynamic(
   () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false }
+  {
+    ssr: false,
+    // Same footprint as the icon button, so the header doesn't shift on load.
+    loading: () => <div className="size-9" aria-hidden />,
+  }
 );
 
 interface LangsConfig {
@@ -243,7 +247,7 @@ export default function LangsBannerPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex flex-wrap gap-2" role="listbox" aria-label="Color presets">
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color presets">
                   {PRESETS.map((p) => {
                     const selected =
                       config.gradientFrom === p.from &&
@@ -256,8 +260,8 @@ export default function LangsBannerPage() {
                         type="button"
                         title={p.name}
                         aria-label={`${p.name} preset`}
-                        aria-selected={selected}
-                        role="option"
+                        aria-checked={selected}
+                        role="radio"
                         onClick={() =>
                           setConfig((c) => ({
                             ...c,
@@ -425,6 +429,13 @@ export default function LangsBannerPage() {
                     Copy README
                   </Button>
                 </div>
+                <span className="sr-only" role="status" aria-live="polite">
+                  {copied === "api"
+                    ? "API link copied to clipboard"
+                    : copied === "md"
+                      ? "README snippet copied to clipboard"
+                      : ""}
+                </span>
 
                 <Separator />
 

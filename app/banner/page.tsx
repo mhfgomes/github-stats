@@ -9,7 +9,11 @@ import dynamic from "next/dynamic";
 
 const ThemeToggle = dynamic(
   () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false }
+  {
+    ssr: false,
+    // Same footprint as the icon button, so the header doesn't shift on load.
+    loading: () => <div className="size-9" aria-hidden />,
+  }
 );
 
 export default function BannerIndexPage() {
