@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -157,14 +157,17 @@ export default function SearchForm({
           />
         </div>
 
-        <Button type="submit" disabled={isSearching || !username.trim()} className="w-full sm:w-auto">
+        <Button type="submit" disabled={isSearching || !username.trim()} className="w-full sm:w-auto gap-2">
           {isSearching ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Searching…
             </>
           ) : (
-            "Search"
+            <>
+              <Search className="h-4 w-4" />
+              Search
+            </>
           )}
         </Button>
       </div>
