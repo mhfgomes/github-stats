@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -8,6 +9,7 @@ import {
   Activity,
   GitCommitHorizontal,
   Inbox,
+  ExternalLink,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -61,20 +63,39 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-muted-foreground text-sm mb-4">
-          Stats for{" "}
-          <span className="text-foreground font-semibold">
-            @{stats.username}
-          </span>
-          {" · "}
-          {stats.from === stats.to ? (
-            <span>{stats.from}</span>
-          ) : (
-            <span>
-              {stats.from} → {stats.to}
-            </span>
-          )}
-        </p>
+        <div className="flex items-center gap-3 mb-4">
+          <Image
+            src={`https://github.com/${stats.username}.png?size=80`}
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full border border-border bg-muted shrink-0"
+            unoptimized
+          />
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground">
+              Stats for{" "}
+              <a
+                href={`https://github.com/${stats.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-violet-700 dark:hover:text-violet-400 transition-colors"
+              >
+                @{stats.username}
+                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+              </a>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {stats.from === stats.to ? (
+                <span>{stats.from}</span>
+              ) : (
+                <span>
+                  {stats.from} → {stats.to}
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard
