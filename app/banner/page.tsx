@@ -1,41 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BarChart2, Languages } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BarChart2, Languages } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import dynamic from "next/dynamic";
-
-const ThemeToggle = dynamic(
-  () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false }
-);
+import AppHeader from "@/components/AppHeader";
 
 export default function BannerIndexPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-start sm:items-center justify-between gap-3 mb-8">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <Button variant="ghost" size="sm" asChild className="shrink-0">
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Stats</span>
-              </Link>
-            </Button>
-            <Separator orientation="vertical" className="h-5 hidden sm:block" />
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Banner Generator
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Pick a banner type to generate and embed.
-              </p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
+        <AppHeader
+          title="Banner Generator"
+          description="Pick a banner type to generate and embed."
+          backHref="/"
+          backLabel="Stats"
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link href="/banner/stats" className="group block focus-visible:outline-none">

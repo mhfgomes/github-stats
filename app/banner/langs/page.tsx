@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft, Copy, Check, Shuffle } from "lucide-react";
+import { Copy, Check, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,13 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import AppHeader from "@/components/AppHeader";
 import { cn } from "@/lib/utils";
-import dynamic from "next/dynamic";
-
-const ThemeToggle = dynamic(
-  () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false }
-);
 
 interface LangsConfig {
   username: string;
@@ -165,26 +159,12 @@ export default function LangsBannerPage() {
   return (
     <main className="min-h-screen">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-start sm:items-center justify-between gap-3 mb-8">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <Button variant="ghost" size="sm" asChild className="shrink-0">
-              <Link href="/banner">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Banners</span>
-              </Link>
-            </Button>
-            <Separator orientation="vertical" className="h-5 hidden sm:block" />
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Languages Banner
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Most used languages across all your repositories, all time.
-              </p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
+        <AppHeader
+          title="Languages Banner"
+          description="Most used languages across all your repositories, all time."
+          backHref="/banner"
+          backLabel="Banners"
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
           <div className="flex flex-col gap-4 order-2 lg:order-1">

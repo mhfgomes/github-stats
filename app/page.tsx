@@ -3,17 +3,10 @@
 import { useCallback, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import StatsResults from "@/components/StatsResults";
+import AppHeader from "@/components/AppHeader";
 import type { DayStats } from "@/lib/github";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ImageIcon, Search } from "lucide-react";
-import Link from "next/link";
-import dynamic from "next/dynamic";
-
-const ThemeToggle = dynamic(
-  () => import("@/components/ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false }
-);
+import { Search } from "lucide-react";
 
 function readSearchParams() {
   if (typeof window === "undefined") {
@@ -91,25 +84,11 @@ export default function Home() {
   return (
     <main className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-        <div className="flex items-start justify-between gap-4 mb-8 sm:mb-10">
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">
-              GitHub Daily Stats
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Additions &amp; deletions by user, per repository.
-            </p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/banner">
-                <ImageIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Banner</span>
-              </Link>
-            </Button>
-            <ThemeToggle />
-          </div>
-        </div>
+        <AppHeader
+          title="GitHub Daily Stats"
+          description="Additions & deletions by user, per repository."
+          showBannerLink
+        />
 
         <Card className="mb-8 py-0">
           <CardContent className="p-4 sm:p-6">
