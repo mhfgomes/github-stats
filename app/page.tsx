@@ -3,10 +3,11 @@
 import { useCallback, useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import StatsResults from "@/components/StatsResults";
+import EmptyStats from "@/components/EmptyStats";
 import type { DayStats } from "@/lib/github";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ImageIcon, Search } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -89,7 +90,11 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen">
+    <main className="relative min-h-screen overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,oklch(0.58_0.09_210_/_0.14),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,oklch(0.72_0.1_210_/_0.18),transparent)]"
+        aria-hidden
+      />
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
         <div className="flex items-start justify-between gap-4 mb-8 sm:mb-10">
           <div className="min-w-0">
@@ -126,16 +131,7 @@ export default function Home() {
         {request ? (
           <StatsResults requestKey={request.key} promise={request.promise} />
         ) : (
-          <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
-            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-              <Search className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-sm font-medium">Look up a GitHub user</p>
-            <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">
-              Enter a username and date range to see commits, additions, and
-              deletions broken down by repository.
-            </p>
-          </div>
+          <EmptyStats />
         )}
       </div>
     </main>
