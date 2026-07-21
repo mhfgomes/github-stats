@@ -49,6 +49,21 @@ function startFetch(
   })();
 }
 
+
+function last7DaysRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 6);
+  const fmt = (d: Date) => {
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+  return { from: fmt(start), to: fmt(end) };
+}
+
+const EXAMPLE_USERNAME = "torvalds";
+
 function createRequest(username: string, from: string, to: string) {
   return {
     key: `${username}:${from}:${to}:${Date.now()}`,
@@ -135,6 +150,19 @@ export default function Home() {
               Enter a username and date range to see commits, additions, and
               deletions broken down by repository.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              disabled={isSearching}
+              onClick={() => {
+                const { from, to } = last7DaysRange();
+                handleSearch(EXAMPLE_USERNAME, from, to);
+              }}
+            >
+              Try @{EXAMPLE_USERNAME}
+            </Button>
           </div>
         )}
       </div>
