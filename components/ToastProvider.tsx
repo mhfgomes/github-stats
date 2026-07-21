@@ -8,10 +8,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { AlertCircle, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ToastTone = "default" | "destructive";
+type ToastTone = "default" | "destructive" | "success";
 
 interface ToastInput {
   title: string;
@@ -64,12 +68,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             aria-live={item.tone === "destructive" ? "assertive" : "polite"}
           >
             <div className="flex items-start gap-3">
-              <AlertCircle
-                className={cn(
-                  "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground",
-                  item.tone === "destructive" && "text-destructive"
-                )}
-              />
+              {item.tone === "success" ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <AlertCircle
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground",
+                    item.tone === "destructive" && "text-destructive"
+                  )}
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{item.title}</p>
                 {item.description ? (

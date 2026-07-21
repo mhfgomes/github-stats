@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ToggleRow from "@/components/ToggleRow";
+import { useToast } from "@/components/ToastProvider";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
@@ -142,23 +143,30 @@ function ColorPicker({
   label,
   value,
   onChange,
+  id,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  id: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      <label className="flex items-center gap-2.5 h-9 rounded-md border border-input px-3 cursor-pointer hover:bg-accent/40 transition-colors">
+      <Label htmlFor={id}>{label}</Label>
+      <label
+        htmlFor={id}
+        className="flex items-center gap-2.5 h-9 rounded-md border border-input px-3 cursor-pointer hover:bg-accent/40 transition-colors"
+      >
         <span
           className="w-5 h-5 rounded-sm border border-border shrink-0"
           style={{ backgroundColor: value }}
+          aria-hidden
         />
         <span className="text-sm font-mono flex-1 text-foreground">
           {value}
         </span>
         <input
+          id={id}
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -195,6 +203,7 @@ export default function StatsBannerPage() {
   const [config, setConfig] = useState<BannerConfig>(DEFAULT_CONFIG);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
+  const { toast } = useToast();
 
   const set = useCallback(
     <K extends keyof BannerConfig>(key: K, value: BannerConfig[K]) =>
@@ -243,6 +252,11 @@ export default function StatsBannerPage() {
   async function copy(type: "api" | "md") {
     await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
     setCopied(type);
+    toast({
+      title: type === "api" ? "API link copied" : "README snippet copied",
+      durationMs: 2000,
+      tone: "success",
+    });
     setTimeout(() => setCopied(null), 2000);
   }
 
@@ -301,12 +315,12 @@ export default function StatsBannerPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Range</Label>
+                  <Label htmlFor="stats-range">Range</Label>
                   <Select
                     value={config.range}
                     onValueChange={(v) => set("range", v as BannerConfig["range"])}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="stats-range">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -384,12 +398,12 @@ export default function StatsBannerPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label>Top repositories</Label>
+                  <Label htmlFor="stats-top-repos">Top repositories</Label>
                   <Select
                     value={String(config.topRepos)}
                     onValueChange={(v) => set("topRepos", Number(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="stats-top-repos">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -464,11 +478,13 @@ export default function StatsBannerPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <ColorPicker
+                    id="stats-gradient-from"
                     label="Gradient from"
                     value={config.gradientFrom}
                     onChange={(v) => set("gradientFrom", v)}
                   />
                   <ColorPicker
+                    id="stats-gradient-to"
                     label="Gradient to"
                     value={config.gradientTo}
                     onChange={(v) => set("gradientTo", v)}
@@ -476,16 +492,19 @@ export default function StatsBannerPage() {
                 </div>
 
                 <ColorPicker
+                  id="stats-text"
                   label="Text"
                   value={config.textColor}
                   onChange={(v) => set("textColor", v)}
                 />
                 <ColorPicker
+                  id="stats-muted"
                   label="Muted"
                   value={config.mutedColor}
                   onChange={(v) => set("mutedColor", v)}
                 />
                 <ColorPicker
+                  id="stats-accent"
                   label="Accent"
                   value={config.accentColor}
                   onChange={(v) => set("accentColor", v)}
@@ -501,12 +520,12 @@ export default function StatsBannerPage() {
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label>Gradient direction</Label>
+                  <Label htmlFor="stats-direction">Gradient direction</Label>
                   <Select
                     value={config.direction}
                     onValueChange={(v) => set("direction", v as BannerConfig["direction"])}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="stats-direction">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -521,8 +540,9 @@ export default function StatsBannerPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Width</Label>
+                    <Label htmlFor="stats-width">Width</Label>
                     <Input
+                      id="stats-width"
                       type="number"
                       min={480}
                       max={1600}
@@ -531,12 +551,12 @@ export default function StatsBannerPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Height</Label>
+                    <Label htmlFor="stats-height">Height</Label>
                     <Select
                       value={String(config.height)}
                       onValueChange={(v) => set("height", Number(v))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="stats-height">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

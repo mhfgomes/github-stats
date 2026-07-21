@@ -80,6 +80,7 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
                       className="text-sm text-muted-foreground hover:text-violet-700 dark:hover:text-violet-400 transition-colors truncate block"
                     >
                       {c.message}
+                      <span className="sr-only"> (opens in new tab)</span>
                     </a>
                   ) : c.isPrivate ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

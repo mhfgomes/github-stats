@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ToastProvider";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
@@ -74,23 +75,30 @@ function ColorPicker({
   label,
   value,
   onChange,
+  id,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  id: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      <label className="flex items-center gap-2.5 h-9 rounded-md border border-input px-3 cursor-pointer hover:bg-accent/40 transition-colors">
+      <Label htmlFor={id}>{label}</Label>
+      <label
+        htmlFor={id}
+        className="flex items-center gap-2.5 h-9 rounded-md border border-input px-3 cursor-pointer hover:bg-accent/40 transition-colors"
+      >
         <span
           className="w-5 h-5 rounded-sm border border-border shrink-0"
           style={{ backgroundColor: value }}
+          aria-hidden
         />
         <span className="text-sm font-mono flex-1 text-foreground">
           {value}
         </span>
         <input
+          id={id}
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -117,6 +125,7 @@ export default function LangsBannerPage() {
   const [config, setConfig] = useState<LangsConfig>(DEFAULT_CONFIG);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [copied, setCopied] = useState<"api" | "md" | null>(null);
+  const { toast } = useToast();
 
   const set = useCallback(
     <K extends keyof LangsConfig>(key: K, value: LangsConfig[K]) =>
@@ -148,6 +157,11 @@ export default function LangsBannerPage() {
   async function copy(type: "api" | "md") {
     await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
     setCopied(type);
+    toast({
+      title: type === "api" ? "API link copied" : "README snippet copied",
+      durationMs: 2000,
+      tone: "success",
+    });
     setTimeout(() => setCopied(null), 2000);
   }
 
@@ -205,12 +219,12 @@ export default function LangsBannerPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Top languages</Label>
+                  <Label htmlFor="langs-top">Top languages</Label>
                   <Select
                     value={String(config.topLangs)}
                     onValueChange={(v) => set("topLangs", Number(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="langs-top">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -283,11 +297,13 @@ export default function LangsBannerPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <ColorPicker
+                    id="langs-gradient-from"
                     label="Gradient from"
                     value={config.gradientFrom}
                     onChange={(v) => set("gradientFrom", v)}
                   />
                   <ColorPicker
+                    id="langs-gradient-to"
                     label="Gradient to"
                     value={config.gradientTo}
                     onChange={(v) => set("gradientTo", v)}
@@ -295,11 +311,13 @@ export default function LangsBannerPage() {
                 </div>
 
                 <ColorPicker
+                  id="langs-text"
                   label="Text"
                   value={config.textColor}
                   onChange={(v) => set("textColor", v)}
                 />
                 <ColorPicker
+                  id="langs-muted"
                   label="Muted"
                   value={config.mutedColor}
                   onChange={(v) => set("mutedColor", v)}
@@ -315,12 +333,12 @@ export default function LangsBannerPage() {
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label>Gradient direction</Label>
+                  <Label htmlFor="langs-direction">Gradient direction</Label>
                   <Select
                     value={config.direction}
                     onValueChange={(v) => set("direction", v as LangsConfig["direction"])}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="langs-direction">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -335,8 +353,9 @@ export default function LangsBannerPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Width</Label>
+                    <Label htmlFor="langs-width">Width</Label>
                     <Input
+                      id="langs-width"
                       type="number"
                       min={480}
                       max={1600}
@@ -345,12 +364,12 @@ export default function LangsBannerPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Height</Label>
+                    <Label htmlFor="langs-height">Height</Label>
                     <Select
                       value={String(config.height)}
                       onValueChange={(v) => set("height", Number(v))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="langs-height">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

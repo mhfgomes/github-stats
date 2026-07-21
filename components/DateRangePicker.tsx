@@ -28,6 +28,7 @@ interface Props {
   value: DateRange | undefined;
   onChange: (value: DateRange | undefined) => void;
   disabled?: boolean;
+  id?: string;
 }
 
 export default function DateRangePicker({
@@ -35,11 +36,13 @@ export default function DateRangePicker({
   value,
   onChange,
   disabled = false,
+  id,
 }: Props) {
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           disabled={disabled}
           className="w-full sm:w-[280px] justify-start gap-2 text-left font-normal"

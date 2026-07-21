@@ -148,8 +148,9 @@ export default function SearchForm({
         </div>
 
         <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-          <Label>Date Range</Label>
+          <Label htmlFor="date-range">Date Range</Label>
           <DateRangePicker
+            id="date-range"
             label="Date range"
             value={range}
             onChange={setRange}

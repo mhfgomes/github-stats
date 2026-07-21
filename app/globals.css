@@ -99,6 +99,13 @@
   animation: theme-reveal 0.4s ease-in-out forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
 @keyframes theme-reveal {
   from {
     clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
