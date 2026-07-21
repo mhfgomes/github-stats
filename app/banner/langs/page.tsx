@@ -187,8 +187,8 @@ export default function LangsBannerPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-          <div className="flex flex-col gap-4 order-2 lg:order-1">
-            <Card className="gap-0 py-0">
+          <div className="contents lg:flex lg:flex-col lg:gap-4">
+            <Card className="order-1 gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Source
@@ -225,7 +225,7 @@ export default function LangsBannerPage() {
               </CardContent>
             </Card>
 
-            <Card className="gap-0 py-0">
+            <Card className="order-3 gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -307,7 +307,7 @@ export default function LangsBannerPage() {
               </CardContent>
             </Card>
 
-            <Card className="gap-0 py-0">
+            <Card className="order-4 gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Layout
@@ -367,7 +367,7 @@ export default function LangsBannerPage() {
             </Card>
           </div>
 
-          <div className="flex flex-col gap-4 order-1 lg:order-2 lg:sticky lg:top-6">
+          <div className="order-2 flex flex-col gap-4 lg:sticky lg:top-6">
             <Card className="gap-0 py-0">
               <CardHeader className="px-5 pt-5 pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
