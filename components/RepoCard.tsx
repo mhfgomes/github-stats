@@ -10,7 +10,8 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, Lock } from "lucide-react";
+import { ChevronDown, ExternalLink, Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function privateRepoLabel(repo: string) {
   const id = repo.startsWith("private:") ? repo.slice("private:".length) : repo;
@@ -21,14 +22,19 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
   const [open, setOpen] = useState(false);
   const isPrivateRepo = repo.isPrivate;
   const title = isPrivateRepo ? privateRepoLabel(repo.repo) : repo.repo;
+  const repoLink = !isPrivateRepo ? repo.repoUrl : null;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="gap-0 py-0 overflow-hidden">
+        <div className="flex items-stretch">
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-accent/40 transition-colors text-left"
+            className={cn(
+              "flex-1 min-w-0 flex items-center justify-between pl-4 sm:pl-5 py-4 hover:bg-accent/40 transition-colors text-left",
+              repoLink ? "pr-2" : "pr-4 sm:pr-5"
+            )}
             aria-expanded={open}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -62,6 +68,19 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
             </div>
           </button>
         </CollapsibleTrigger>
+        {repoLink && (
+          <a
+            href={repoLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${repo.repo} on GitHub`}
+            title="Open on GitHub"
+            className="flex items-center px-3 sm:px-4 text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+          </a>
+        )}
+        </div>
 
         <CollapsibleContent>
           <Separator />
