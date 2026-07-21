@@ -56,6 +56,23 @@ function createRequest(username: string, from: string, to: string) {
   };
 }
 
+const EXAMPLE_USERS = ["torvalds", "gaearon", "sindresorhus", "yyx990803"];
+
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function lastSevenDays() {
+  const now = new Date();
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const from = new Date(to);
+  from.setDate(from.getDate() - 6);
+  return { from: toIsoDate(from), to: toIsoDate(to) };
+}
+
 export default function Home() {
   const [initial] = useState(readSearchParams);
   const [request, setRequest] = useState<{
@@ -72,6 +89,12 @@ export default function Home() {
     );
   });
   const [isSearching, setIsSearching] = useState(false);
+  const [formSeed, setFormSeed] = useState({
+    key: 0,
+    username: initial.username,
+    from: initial.from,
+    to: initial.to,
+  });
 
   const handleSearch = useCallback(
     (username: string, from: string, to: string) => {
@@ -86,6 +109,15 @@ export default function Home() {
       setRequest(next);
     },
     []
+  );
+
+  const handleExample = useCallback(
+    (username: string) => {
+      const { from, to } = lastSevenDays();
+      setFormSeed((seed) => ({ key: seed.key + 1, username, from, to }));
+      handleSearch(username, from, to);
+    },
+    [handleSearch]
   );
 
   return (
@@ -114,11 +146,12 @@ export default function Home() {
         <Card className="mb-8 py-0">
           <CardContent className="p-4 sm:p-6">
             <SearchForm
+              key={formSeed.key}
               onSearch={handleSearch}
               isSearching={isSearching}
-              initialUsername={initial.username}
-              initialFrom={initial.from}
-              initialTo={initial.to}
+              initialUsername={formSeed.username}
+              initialFrom={formSeed.from}
+              initialTo={formSeed.to}
             />
           </CardContent>
         </Card>
@@ -135,6 +168,21 @@ export default function Home() {
               Enter a username and date range to see commits, additions, and
               deletions broken down by repository.
             </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xs text-muted-foreground">Try:</span>
+              {EXAMPLE_USERS.map((user) => (
+                <Button
+                  key={user}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => handleExample(user)}
+                >
+                  @{user}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
       </div>
