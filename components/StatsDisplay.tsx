@@ -17,12 +17,14 @@ function StatCard({
   cqw,
   icon: Icon,
   className,
+  iconClassName,
 }: {
   label: string;
   value: string;
   cqw: number;
   icon: LucideIcon;
   className?: string;
+  iconClassName?: string;
 }) {
   return (
     <Card className="gap-1 px-4 sm:px-6 py-4 sm:py-5" style={{ containerType: "inline-size" }}>
@@ -30,7 +32,11 @@ function StatCard({
         <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium truncate">
           {label}
         </span>
-        <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span
+          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${iconClassName ?? "bg-muted text-muted-foreground"}`}
+        >
+          <Icon className="w-3.5 h-3.5" />
+        </span>
       </div>
       <span
         className={`font-bold font-mono leading-tight ${className}`}
@@ -83,6 +89,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             cqw={cqw}
             icon={FilePlusCorner}
             className="text-emerald-700 dark:text-emerald-400"
+            iconClassName="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
           />
           <StatCard
             label="Deletions"
@@ -90,9 +97,10 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             cqw={cqw}
             icon={FileMinusCorner}
             className="text-red-700 dark:text-red-400"
+            iconClassName="bg-red-500/10 text-red-700 dark:text-red-400"
           />
           <StatCard
-            label="Delta"
+            label="Net"
             value={netChange}
             cqw={cqw}
             icon={Activity}
@@ -101,6 +109,11 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
                 ? "text-emerald-700 dark:text-emerald-400"
                 : "text-red-700 dark:text-red-400"
             }
+            iconClassName={
+              net >= 0
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : "bg-red-500/10 text-red-700 dark:text-red-400"
+            }
           />
           <StatCard
             label="Commits"
@@ -108,6 +121,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             cqw={cqw}
             icon={GitCommitHorizontal}
             className="text-violet-700 dark:text-violet-400"
+            iconClassName="bg-violet-500/10 text-violet-700 dark:text-violet-400"
           />
         </div>
       </div>
