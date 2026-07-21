@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Copy, Check, Shuffle } from "lucide-react";
+import { ArrowLeft, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ToggleRow from "@/components/ToggleRow";
-import { cn } from "@/lib/utils";
+import ColorPicker from "@/components/banner/ColorPicker";
+import ThemePresets from "@/components/banner/ThemePresets";
+import BannerExport from "@/components/banner/BannerExport";
+import {
+  BANNER_DIRECTIONS,
+  BANNER_THEME_PRESETS,
+  DEFAULT_BANNER_THEME,
+  type BannerDirection,
+} from "@/lib/banner-presets";
 import dynamic from "next/dynamic";
 
 const ThemeToggle = dynamic(
@@ -41,39 +49,11 @@ interface BannerConfig {
   height: number;
   gradientFrom: string;
   gradientTo: string;
-  direction: "to-r" | "to-b" | "to-br" | "to-tr";
+  direction: BannerDirection;
   textColor: string;
   mutedColor: string;
   accentColor: string;
 }
-
-type ThemePreset = {
-  name: string;
-  from: string;
-  to: string;
-  text: string;
-  muted: string;
-  accent: string;
-};
-
-const PRESETS: ThemePreset[] = [
-  { name: "Claude", from: "#B05730", to: "#9C87F5", text: "#C3C0B6", muted: "#B7B5A9", accent: "#D97757" },
-  { name: "Vercel", from: "#FFAE04", to: "#2671F4", text: "#FFFFFF", muted: "#A4A4A4", accent: "#FFFFFF" },
-  { name: "Supabase", from: "#4ADE80", to: "#60A5FA", text: "#E2E8F0", muted: "#A2A2A2", accent: "#006239" },
-  { name: "Ocean", from: "#1e3c72", to: "#2a5298", text: "#ffffff", muted: "#cbd5f5", accent: "#fbd38d" },
-  { name: "Sunset", from: "#f7971e", to: "#ff416c", text: "#ffffff", muted: "#ffe3cc", accent: "#fff2cc" },
-  { name: "Forest", from: "#0f766e", to: "#22c55e", text: "#ecfdf5", muted: "#c2f0d8", accent: "#facc15" },
-  { name: "Midnight", from: "#0f172a", to: "#1f2937", text: "#f8fafc", muted: "#cbd5f5", accent: "#a5b4fc" },
-  { name: "Lavender", from: "#8b5cf6", to: "#ec4899", text: "#ffffff", muted: "#f5d0fe", accent: "#fde047" },
-  { name: "Stone", from: "#334155", to: "#94a3b8", text: "#f8fafc", muted: "#e2e8f0", accent: "#f8fafc" },
-];
-
-const DIRECTIONS = [
-  { value: "to-r", label: "→  Horizontal" },
-  { value: "to-b", label: "↓  Vertical" },
-  { value: "to-br", label: "↘  Diagonal" },
-  { value: "to-tr", label: "↗  Diagonal (reverse)" },
-] as const;
 
 const HEIGHTS = [
   { value: 180, label: "Compact  (180 px)" },
@@ -138,37 +118,6 @@ function rangeDates(key: BannerConfig["range"]) {
   return { from: todayStr, to: todayStr };
 }
 
-function ColorPicker({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      <label className="flex items-center gap-2.5 h-9 rounded-md border border-input px-3 cursor-pointer hover:bg-accent/40 transition-colors">
-        <span
-          className="w-5 h-5 rounded-sm border border-border shrink-0"
-          style={{ backgroundColor: value }}
-        />
-        <span className="text-sm font-mono flex-1 text-foreground">
-          {value}
-        </span>
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="sr-only"
-        />
-      </label>
-    </div>
-  );
-}
-
 const DEFAULT_CONFIG: BannerConfig = {
   username: "",
   range: "last7",
@@ -183,18 +132,17 @@ const DEFAULT_CONFIG: BannerConfig = {
   topRepos: 3,
   width: 900,
   height: 240,
-  gradientFrom: PRESETS[0].from,
-  gradientTo: PRESETS[0].to,
+  gradientFrom: DEFAULT_BANNER_THEME.from,
+  gradientTo: DEFAULT_BANNER_THEME.to,
   direction: "to-br",
-  textColor: PRESETS[0].text,
-  mutedColor: PRESETS[0].muted,
-  accentColor: PRESETS[0].accent,
+  textColor: DEFAULT_BANNER_THEME.text,
+  mutedColor: DEFAULT_BANNER_THEME.muted,
+  accentColor: DEFAULT_BANNER_THEME.accent,
 };
 
 export default function StatsBannerPage() {
   const [config, setConfig] = useState<BannerConfig>(DEFAULT_CONFIG);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
-  const [copied, setCopied] = useState<"api" | "md" | null>(null);
 
   const set = useCallback(
     <K extends keyof BannerConfig>(key: K, value: BannerConfig[K]) =>
@@ -240,14 +188,7 @@ export default function StatsBannerPage() {
     ? `![GitHub stats banner](${apiUrl})`
     : `![GitHub stats banner](${origin}/api/banner?username=USERNAME)`;
 
-  async function copy(type: "api" | "md") {
-    await navigator.clipboard.writeText(type === "api" ? apiUrl : mdSnippet);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  function randomPreset() {
-    const p = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+  function applyPreset(p: (typeof BANNER_THEME_PRESETS)[number]) {
     setConfig((c) => ({
       ...c,
       gradientFrom: p.from,
@@ -256,6 +197,12 @@ export default function StatsBannerPage() {
       mutedColor: p.muted,
       accentColor: p.accent,
     }));
+  }
+
+  function randomPreset() {
+    applyPreset(
+      BANNER_THEME_PRESETS[Math.floor(Math.random() * BANNER_THEME_PRESETS.length)]
+    );
   }
 
   return (
@@ -301,12 +248,12 @@ export default function StatsBannerPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Range</Label>
+                  <Label htmlFor="range">Range</Label>
                   <Select
                     value={config.range}
                     onValueChange={(v) => set("range", v as BannerConfig["range"])}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="range">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -384,12 +331,12 @@ export default function StatsBannerPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label>Top repositories</Label>
+                  <Label htmlFor="top-repos">Top repositories</Label>
                   <Select
                     value={String(config.topRepos)}
                     onValueChange={(v) => set("topRepos", Number(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="top-repos">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -422,45 +369,16 @@ export default function StatsBannerPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex flex-wrap gap-2" role="listbox" aria-label="Color presets">
-                  {PRESETS.map((p) => {
-                    const selected =
-                      config.gradientFrom === p.from &&
-                      config.gradientTo === p.to &&
-                      config.textColor === p.text &&
-                      config.mutedColor === p.muted &&
-                      config.accentColor === p.accent;
-                    return (
-                      <button
-                        key={p.name}
-                        type="button"
-                        title={p.name}
-                        aria-label={`${p.name} preset`}
-                        aria-selected={selected}
-                        role="option"
-                        onClick={() =>
-                          setConfig((c) => ({
-                            ...c,
-                            gradientFrom: p.from,
-                            gradientTo: p.to,
-                            textColor: p.text,
-                            mutedColor: p.muted,
-                            accentColor: p.accent,
-                          }))
-                        }
-                        className={cn(
-                          "w-7 h-7 rounded-full border-2 transition-all",
-                          selected
-                            ? "border-foreground scale-110 ring-2 ring-ring/40"
-                            : "border-transparent hover:border-ring hover:scale-110"
-                        )}
-                        style={{
-                          background: `linear-gradient(to bottom right, ${p.from}, ${p.to})`,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                <ThemePresets
+                  selected={{
+                    from: config.gradientFrom,
+                    to: config.gradientTo,
+                    text: config.textColor,
+                    muted: config.mutedColor,
+                    accent: config.accentColor,
+                  }}
+                  onSelect={applyPreset}
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <ColorPicker
@@ -501,16 +419,16 @@ export default function StatsBannerPage() {
               </CardHeader>
               <CardContent className="px-5 pb-5 flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label>Gradient direction</Label>
+                  <Label htmlFor="direction">Gradient direction</Label>
                   <Select
                     value={config.direction}
-                    onValueChange={(v) => set("direction", v as BannerConfig["direction"])}
+                    onValueChange={(v) => set("direction", v as BannerDirection)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="direction">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DIRECTIONS.map((d) => (
+                      {BANNER_DIRECTIONS.map((d) => (
                         <SelectItem key={d.value} value={d.value}>
                           {d.label}
                         </SelectItem>
@@ -521,8 +439,9 @@ export default function StatsBannerPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Width</Label>
+                    <Label htmlFor="width">Width</Label>
                     <Input
+                      id="width"
                       type="number"
                       min={480}
                       max={1600}
@@ -531,12 +450,12 @@ export default function StatsBannerPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Height</Label>
+                    <Label htmlFor="height">Height</Label>
                     <Select
                       value={String(config.height)}
                       onValueChange={(v) => set("height", Number(v))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="height">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -581,54 +500,11 @@ export default function StatsBannerPage() {
               </CardContent>
             </Card>
 
-            <Card className="gap-0 py-0">
-              <CardHeader className="px-5 pt-5 pb-3">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Export
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-5 flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <Button onClick={() => copy("api")} className="flex-1 gap-2" disabled={!config.username}>
-                    {copied === "api" ? (
-                      <Check className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                    Copy API link
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => copy("md")}
-                    className="gap-2"
-                    disabled={!config.username}
-                  >
-                    {copied === "md" ? (
-                      <Check className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                    Copy README
-                  </Button>
-                </div>
-
-                <Separator />
-
-                <div className="flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">API link</Label>
-                  <pre className="rounded-md bg-muted px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
-                    {config.username ? apiUrl : "Fill in a username to generate the API link."}
-                  </pre>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">README snippet</Label>
-                  <pre className="rounded-md bg-muted px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
-                    {mdSnippet}
-                  </pre>
-                </div>
-              </CardContent>
-            </Card>
+            <BannerExport
+              apiUrl={apiUrl}
+              mdSnippet={mdSnippet}
+              enabled={Boolean(config.username)}
+            />
           </div>
         </div>
       </div>
