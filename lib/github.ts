@@ -50,7 +50,18 @@ interface GHRepo {
 interface GHCommit {
   sha: string;
   html_url: string;
-  commit: { message: string; committer: { date: string } };
+  author: { login: string } | null;
+  commit: {
+    message: string;
+    author: { name: string; email: string; date: string };
+    committer: { date: string };
+  };
+}
+
+interface UserIdentity {
+  login: string;
+  id: number;
+  emails: Set<string>;
 }
 
 async function ghFetch(url: string) {
@@ -60,6 +71,61 @@ async function ghFetch(url: string) {
     throw new Error(`GitHub API error ${res.status}: ${body}`);
   }
   return res.json();
+}
+
+/** Resolve emails/logins used to attribute primary + Co-authored-by commits. */
+async function resolveUserIdentity(username: string): Promise<UserIdentity> {
+  const login = username.toLowerCase();
+  const user = await ghFetch(`${GITHUB_API}/users/${encodeURIComponent(username)}`);
+  const emails = new Set<string>();
+
+  if (typeof user.email === "string" && user.email) {
+    emails.add(user.email.toLowerCase());
+  }
+  emails.add(`${login}@users.noreply.github.com`);
+  emails.add(`${user.id}+${login}@users.noreply.github.com`);
+
+  // When the token belongs to the searched user, include private emails too.
+  try {
+    const me = await ghFetch(`${GITHUB_API}/user`);
+    if (typeof me.login === "string" && me.login.toLowerCase() === login) {
+      const myEmails = await ghFetch(`${GITHUB_API}/user/emails`);
+      if (Array.isArray(myEmails)) {
+        for (const entry of myEmails) {
+          if (typeof entry?.email === "string" && entry.email) {
+            emails.add(entry.email.toLowerCase());
+          }
+        }
+      }
+    }
+  } catch {
+    // Unauthenticated or missing user:email scope — noreply forms still work.
+  }
+
+  return { login, id: user.id as number, emails };
+}
+
+function coAuthorEmails(message: string): string[] {
+  const emails: string[] = [];
+  const re = /^[ \t]*Co-authored-by:\s*.+?\s*<([^>]+)>\s*$/gim;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(message)) !== null) {
+    emails.push(match[1].trim().toLowerCase());
+  }
+  return emails;
+}
+
+function commitAttributedToUser(commit: GHCommit, identity: UserIdentity): boolean {
+  if (commit.author?.login?.toLowerCase() === identity.login) return true;
+
+  const authorEmail = commit.commit.author?.email?.toLowerCase() ?? "";
+  if (authorEmail && identity.emails.has(authorEmail)) return true;
+
+  for (const email of coAuthorEmails(commit.commit.message)) {
+    if (identity.emails.has(email)) return true;
+  }
+
+  return false;
 }
 
 async function getAllRepos(from: string): Promise<GHRepo[]> {
@@ -87,25 +153,114 @@ async function getAllRepos(from: string): Promise<GHRepo[]> {
   return all.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
 }
 
-async function getCommitsInRepo(
+interface GHBranch {
+  name: string;
+}
+
+interface GHPull {
+  number: number;
+  updated_at: string;
+}
+
+/**
+ * GitHub's commits list defaults to the repository default branch only.
+ * Collect branch names and recent PR head refs so feature-branch / PR work is included.
+ */
+async function getCommitRefs(
   fullName: string,
-  author: string,
+  from: string
+): Promise<string[]> {
+  const refs = new Set<string>();
+  const fromTs = new Date(`${from}T00:00:00Z`).getTime();
+  const PAGE_CAP = 5;
+
+  for (let branchPage = 1; branchPage <= PAGE_CAP; branchPage++) {
+    const url =
+      `${GITHUB_API}/repos/${fullName}/branches` +
+      `?per_page=100&page=${branchPage}`;
+    const data: GHBranch[] = await ghFetch(url).catch(() => [] as GHBranch[]);
+    if (!Array.isArray(data) || data.length === 0) break;
+    for (const branch of data) {
+      if (branch?.name) refs.add(branch.name);
+    }
+    if (data.length < 100) break;
+  }
+
+  // Include PR head refs updated in/after the range (covers deleted head branches).
+  for (let pullPage = 1; pullPage <= PAGE_CAP; pullPage++) {
+    const url =
+      `${GITHUB_API}/repos/${fullName}/pulls` +
+      `?state=all&sort=updated&direction=desc&per_page=100&page=${pullPage}`;
+    const data: GHPull[] = await ghFetch(url).catch(() => [] as GHPull[]);
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    let reachedOlder = false;
+    for (const pull of data) {
+      const updated = new Date(pull.updated_at).getTime();
+      if (updated < fromTs) {
+        reachedOlder = true;
+        break;
+      }
+      refs.add(`refs/pull/${pull.number}/head`);
+    }
+    if (reachedOlder || data.length < 100) break;
+  }
+
+  // Always query the default tip even if branch listing failed (empty → default).
+  if (refs.size === 0) refs.add("HEAD");
+  return [...refs];
+}
+
+async function getCommitsForRef(
+  fullName: string,
   since: string,
-  until: string
+  until: string,
+  sha: string
 ): Promise<GHCommit[]> {
   const commits: GHCommit[] = [];
   let page = 1;
   while (true) {
     const url =
       `${GITHUB_API}/repos/${fullName}/commits` +
-      `?author=${author}&since=${since}&until=${until}&per_page=100&page=${page}`;
-    const data: GHCommit[] = await ghFetch(url);
+      `?since=${encodeURIComponent(since)}` +
+      `&until=${encodeURIComponent(until)}` +
+      `&sha=${encodeURIComponent(sha)}` +
+      `&per_page=100&page=${page}`;
+    const data: GHCommit[] = await ghFetch(url).catch(() => [] as GHCommit[]);
     if (!Array.isArray(data) || data.length === 0) break;
     commits.push(...data);
     if (data.length < 100) break;
     page++;
   }
   return commits;
+}
+
+async function getCommitsInRepo(
+  fullName: string,
+  identity: UserIdentity,
+  since: string,
+  until: string,
+  from: string
+): Promise<GHCommit[]> {
+  const refs = await getCommitRefs(fullName, from);
+  const bySha = new Map<string, GHCommit>();
+  const REF_CONCURRENCY = 6;
+
+  for (let i = 0; i < refs.length; i += REF_CONCURRENCY) {
+    const batch = refs.slice(i, i + REF_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      batch.map((ref) => getCommitsForRef(fullName, since, until, ref))
+    );
+    for (const result of settled) {
+      if (result.status !== "fulfilled") continue;
+      for (const commit of result.value) {
+        if (!commitAttributedToUser(commit, identity)) continue;
+        if (!bySha.has(commit.sha)) bySha.set(commit.sha, commit);
+      }
+    }
+  }
+
+  return [...bySha.values()];
 }
 
 async function getCommitDetail(
@@ -167,7 +322,10 @@ export async function fetchRawCommits(
   const since = `${from}T00:00:00Z`;
   const until = `${to}T23:59:59Z`;
 
-  const repos = await getAllRepos(from);
+  const [identity, repos] = await Promise.all([
+    resolveUserIdentity(username),
+    getAllRepos(from),
+  ]);
 
   const REPO_CONCURRENCY = 20;
   const allCommits: CommitStats[] = [];
@@ -176,7 +334,13 @@ export async function fetchRawCommits(
     const batch = repos.slice(i, i + REPO_CONCURRENCY);
     const settled = await Promise.allSettled(
       batch.map(async (repo) => {
-        const commits = await getCommitsInRepo(repo.full_name, username, since, until);
+        const commits = await getCommitsInRepo(
+          repo.full_name,
+          identity,
+          since,
+          until,
+          from
+        );
         if (commits.length === 0) return [] as CommitStats[];
         return fetchStats(
           commits.map((c) => ({
