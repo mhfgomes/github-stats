@@ -50,7 +50,18 @@ interface GHRepo {
 interface GHCommit {
   sha: string;
   html_url: string;
-  commit: { message: string; committer: { date: string } };
+  author: { login: string } | null;
+  commit: {
+    message: string;
+    author: { name: string; email: string; date: string };
+    committer: { date: string };
+  };
+}
+
+interface UserIdentity {
+  login: string;
+  id: number;
+  emails: Set<string>;
 }
 
 async function ghFetch(url: string) {
@@ -60,6 +71,61 @@ async function ghFetch(url: string) {
     throw new Error(`GitHub API error ${res.status}: ${body}`);
   }
   return res.json();
+}
+
+/** Resolve emails/logins used to attribute primary + Co-authored-by commits. */
+async function resolveUserIdentity(username: string): Promise<UserIdentity> {
+  const login = username.toLowerCase();
+  const user = await ghFetch(`${GITHUB_API}/users/${encodeURIComponent(username)}`);
+  const emails = new Set<string>();
+
+  if (typeof user.email === "string" && user.email) {
+    emails.add(user.email.toLowerCase());
+  }
+  emails.add(`${login}@users.noreply.github.com`);
+  emails.add(`${user.id}+${login}@users.noreply.github.com`);
+
+  // When the token belongs to the searched user, include private emails too.
+  try {
+    const me = await ghFetch(`${GITHUB_API}/user`);
+    if (typeof me.login === "string" && me.login.toLowerCase() === login) {
+      const myEmails = await ghFetch(`${GITHUB_API}/user/emails`);
+      if (Array.isArray(myEmails)) {
+        for (const entry of myEmails) {
+          if (typeof entry?.email === "string" && entry.email) {
+            emails.add(entry.email.toLowerCase());
+          }
+        }
+      }
+    }
+  } catch {
+    // Unauthenticated or missing user:email scope — noreply forms still work.
+  }
+
+  return { login, id: user.id as number, emails };
+}
+
+function coAuthorEmails(message: string): string[] {
+  const emails: string[] = [];
+  const re = /^[ \t]*Co-authored-by:\s*.+?\s*<([^>]+)>\s*$/gim;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(message)) !== null) {
+    emails.push(match[1].trim().toLowerCase());
+  }
+  return emails;
+}
+
+function commitAttributedToUser(commit: GHCommit, identity: UserIdentity): boolean {
+  if (commit.author?.login?.toLowerCase() === identity.login) return true;
+
+  const authorEmail = commit.commit.author?.email?.toLowerCase() ?? "";
+  if (authorEmail && identity.emails.has(authorEmail)) return true;
+
+  for (const email of coAuthorEmails(commit.commit.message)) {
+    if (identity.emails.has(email)) return true;
+  }
+
+  return false;
 }
 
 async function getAllRepos(from: string): Promise<GHRepo[]> {
@@ -147,7 +213,6 @@ async function getCommitRefs(
 
 async function getCommitsForRef(
   fullName: string,
-  author: string,
   since: string,
   until: string,
   sha: string
@@ -157,8 +222,7 @@ async function getCommitsForRef(
   while (true) {
     const url =
       `${GITHUB_API}/repos/${fullName}/commits` +
-      `?author=${encodeURIComponent(author)}` +
-      `&since=${encodeURIComponent(since)}` +
+      `?since=${encodeURIComponent(since)}` +
       `&until=${encodeURIComponent(until)}` +
       `&sha=${encodeURIComponent(sha)}` +
       `&per_page=100&page=${page}`;
@@ -173,7 +237,7 @@ async function getCommitsForRef(
 
 async function getCommitsInRepo(
   fullName: string,
-  author: string,
+  identity: UserIdentity,
   since: string,
   until: string,
   from: string
@@ -185,11 +249,12 @@ async function getCommitsInRepo(
   for (let i = 0; i < refs.length; i += REF_CONCURRENCY) {
     const batch = refs.slice(i, i + REF_CONCURRENCY);
     const settled = await Promise.allSettled(
-      batch.map((ref) => getCommitsForRef(fullName, author, since, until, ref))
+      batch.map((ref) => getCommitsForRef(fullName, since, until, ref))
     );
     for (const result of settled) {
       if (result.status !== "fulfilled") continue;
       for (const commit of result.value) {
+        if (!commitAttributedToUser(commit, identity)) continue;
         if (!bySha.has(commit.sha)) bySha.set(commit.sha, commit);
       }
     }
@@ -257,7 +322,10 @@ export async function fetchRawCommits(
   const since = `${from}T00:00:00Z`;
   const until = `${to}T23:59:59Z`;
 
-  const repos = await getAllRepos(from);
+  const [identity, repos] = await Promise.all([
+    resolveUserIdentity(username),
+    getAllRepos(from),
+  ]);
 
   const REPO_CONCURRENCY = 20;
   const allCommits: CommitStats[] = [];
@@ -268,7 +336,7 @@ export async function fetchRawCommits(
       batch.map(async (repo) => {
         const commits = await getCommitsInRepo(
           repo.full_name,
-          username,
+          identity,
           since,
           until,
           from
