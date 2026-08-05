@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -89,19 +90,35 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <p className="text-muted-foreground text-sm min-w-0 truncate">
-            Stats for{" "}
-            <span className="text-foreground font-semibold">
-              @{stats.username}
-            </span>
-            {" · "}
-            {stats.from === stats.to ? (
-              <span>{stats.from}</span>
-            ) : (
-              <span>
-                {stats.from} → {stats.to}
+          <p className="text-muted-foreground text-sm min-w-0 flex items-center gap-2">
+            <a
+              href={`https://github.com/${stats.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 group min-w-0"
+            >
+              <Image
+                src={`https://github.com/${stats.username}.png?size=48`}
+                alt=""
+                width={24}
+                height={24}
+                className="h-6 w-6 rounded-full border border-border shrink-0"
+                unoptimized
+              />
+              <span className="text-foreground font-semibold group-hover:underline underline-offset-4 truncate">
+                @{stats.username}
               </span>
-            )}
+            </a>
+            <span className="truncate">
+              {" · "}
+              {stats.from === stats.to ? (
+                <span>{stats.from}</span>
+              ) : (
+                <span>
+                  {stats.from} → {stats.to}
+                </span>
+              )}
+            </span>
           </p>
           <Button
             type="button"
