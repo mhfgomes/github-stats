@@ -1,7 +1,11 @@
+"use client";
+
 import Image from "next/image";
 import type { DayStats } from "@/lib/github";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ToastProvider";
 import RepoCard from "./RepoCard";
 import {
   FilePlusCorner,
@@ -9,6 +13,7 @@ import {
   Activity,
   GitCommitHorizontal,
   Inbox,
+  Link as LinkIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -44,7 +49,24 @@ function StatCard({
 }
 
 export default function StatsDisplay({ stats }: { stats: DayStats }) {
+  const { toast } = useToast();
   const net = stats.totalAdditions - stats.totalDeletions;
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "Link copied",
+        description: `Anyone opening it sees these stats for @${stats.username}.`,
+      });
+    } catch {
+      toast({
+        title: "Couldn't copy the link",
+        description: "Copy the URL from the address bar instead.",
+        tone: "destructive",
+      });
+    }
+  }
 
   const additions = `+${stats.totalAdditions.toLocaleString("en-US")}`;
   const deletions = `-${stats.totalDeletions.toLocaleString("en-US")}`;
@@ -59,39 +81,56 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
   );
   const cqw = Math.min(28, Math.floor(110 / maxLen));
 
+  const maxRepoChanges = stats.repos.reduce(
+    (max, r) => Math.max(max, r.additions + r.deletions),
+    0
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-muted-foreground text-sm mb-4 flex items-center gap-2">
-          <a
-            href={`https://github.com/${stats.username}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 group"
-          >
-            <Image
-              src={`https://github.com/${stats.username}.png?size=48`}
-              alt=""
-              width={24}
-              height={24}
-              className="h-6 w-6 rounded-full border border-border"
-              unoptimized
-            />
-            <span className="text-foreground font-semibold group-hover:underline underline-offset-4">
-              @{stats.username}
-            </span>
-          </a>
-          <span>
-            {" · "}
-            {stats.from === stats.to ? (
-              <span>{stats.from}</span>
-            ) : (
-              <span>
-                {stats.from} → {stats.to}
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <p className="text-muted-foreground text-sm min-w-0 flex items-center gap-2">
+            <a
+              href={`https://github.com/${stats.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 group min-w-0"
+            >
+              <Image
+                src={`https://github.com/${stats.username}.png?size=48`}
+                alt=""
+                width={24}
+                height={24}
+                className="h-6 w-6 rounded-full border border-border shrink-0"
+                unoptimized
+              />
+              <span className="text-foreground font-semibold group-hover:underline underline-offset-4 truncate">
+                @{stats.username}
               </span>
-            )}
-          </span>
-        </p>
+            </a>
+            <span className="truncate">
+              {" · "}
+              {stats.from === stats.to ? (
+                <span>{stats.from}</span>
+              ) : (
+                <span>
+                  {stats.from} → {stats.to}
+                </span>
+              )}
+            </span>
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs shrink-0"
+            onClick={copyShareLink}
+          >
+            <LinkIcon className="h-3.5 w-3.5" aria-hidden />
+            Copy link
+          </Button>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard
@@ -147,7 +186,7 @@ export default function StatsDisplay({ stats }: { stats: DayStats }) {
             Repositories ({stats.repos.length})
           </p>
           {stats.repos.map((r) => (
-            <RepoCard key={r.repo} repo={r} />
+            <RepoCard key={r.repo} repo={r} maxChanges={maxRepoChanges} />
           ))}
         </div>
       )}

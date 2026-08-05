@@ -18,16 +18,27 @@ function privateRepoLabel(repo: string) {
   return `Private repository · ${id}`;
 }
 
-export default function RepoCard({ repo }: { repo: RepoStats }) {
+export default function RepoCard({
+  repo,
+  maxChanges = 0,
+}: {
+  repo: RepoStats;
+  /** Largest additions+deletions among sibling repos; scales the activity bar. */
+  maxChanges?: number;
+}) {
   const [open, setOpen] = useState(false);
   const isPrivateRepo = repo.isPrivate;
   const title = isPrivateRepo ? privateRepoLabel(repo.repo) : repo.repo;
   const repoLink = !isPrivateRepo ? repo.repoUrl : null;
 
+  const changes = repo.additions + repo.deletions;
+  const share = maxChanges > 0 ? changes / maxChanges : 0;
+  const addFraction = changes > 0 ? repo.additions / changes : 0;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="gap-0 py-0 overflow-hidden">
-        <div className="flex items-stretch">
+        <div className="relative flex items-stretch">
         <CollapsibleTrigger asChild>
           <button
             type="button"
@@ -79,6 +90,23 @@ export default function RepoCard({ repo }: { repo: RepoStats }) {
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
           </a>
+        )}
+
+        {share > 0 && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-0.5 flex"
+            title={`${changes.toLocaleString("en-US")} lines changed — share of the most active repository in this result`}
+            aria-hidden
+          >
+            <div
+              className="bg-emerald-600/70 dark:bg-emerald-400/70"
+              style={{ width: `${share * addFraction * 100}%` }}
+            />
+            <div
+              className="bg-red-600/70 dark:bg-red-400/70"
+              style={{ width: `${share * (1 - addFraction) * 100}%` }}
+            />
+          </div>
         )}
         </div>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Copy, Check, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import BannerPreview from "@/components/BannerPreview";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
@@ -139,7 +140,8 @@ export default function LangsBannerPage() {
   }, [config]);
 
   const apiUrl = origin ? `${origin}${apiPath}` : apiPath;
-  const previewSrc = config.username ? apiPath : "";
+  const previewSrc = config.username.trim() ? apiPath : "";
+  const debouncedPreviewSrc = useDebouncedValue(previewSrc, 500);
 
   const mdSnippet = config.username
     ? `![Most Used Languages](${apiUrl})`
@@ -375,20 +377,14 @@ export default function LangsBannerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-5 pb-5">
-                {previewSrc ? (
-                  <Image
-                    src={previewSrc}
-                    alt="Languages banner preview"
-                    width={config.width}
-                    height={config.height}
-                    className="w-full rounded-lg border border-border"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="h-45 rounded-lg border border-dashed border-border flex items-center justify-center text-sm text-muted-foreground">
-                    Enter a GitHub username to preview
-                  </div>
-                )}
+                <BannerPreview
+                  src={debouncedPreviewSrc}
+                  pending={previewSrc !== debouncedPreviewSrc}
+                  alt="Languages banner preview"
+                  width={config.width}
+                  height={config.height}
+                  emptyMessage="Enter a GitHub username to preview"
+                />
                 <p className="text-xs text-muted-foreground mt-2">
                   {config.width} × {config.height} px · Own repos only, forks excluded · SVG scales to any resolution
                 </p>
