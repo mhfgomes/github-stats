@@ -116,35 +116,134 @@ function headers() {
   };
 }
 
-async function fetchLanguageBytes(
+type LangEdge = { size: number; node: { name: string } | null };
+
+function accumulateLanguages(
+  nodes: Array<{ languages?: { edges: Array<LangEdge | null> } | null } | null>,
+  langTotals: Map<string, number>
+) {
+  for (const repo of nodes) {
+    for (const edge of repo?.languages?.edges ?? []) {
+      const name = edge?.node?.name;
+      if (!name || !edge) continue;
+      langTotals.set(name, (langTotals.get(name) ?? 0) + edge.size);
+    }
+  }
+}
+
+/** One GraphQL round-trip replaces dozens of REST language GETs. */
+async function fetchLanguageBytesGraphQL(
+  username: string
+): Promise<Map<string, number>> {
+  const langTotals = new Map<string, number>();
+  const data = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      ...headers(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `query($login: String!) {
+        viewer { login }
+        user(login: $login) {
+          repositories(
+            first: 50
+            ownerAffiliations: OWNER
+            isFork: false
+            orderBy: { field: PUSHED_AT, direction: DESC }
+          ) {
+            nodes {
+              languages(first: 20, orderBy: { field: SIZE, direction: DESC }) {
+                edges { size node { name } }
+              }
+            }
+          }
+        }
+        viewerRepos: viewer {
+          repositories(
+            first: 50
+            affiliations: [OWNER]
+            isFork: false
+            orderBy: { field: PUSHED_AT, direction: DESC }
+          ) {
+            nodes {
+              languages(first: 20, orderBy: { field: SIZE, direction: DESC }) {
+                edges { size node { name } }
+              }
+            }
+          }
+        }
+      }`,
+      variables: { login: username },
+    }),
+  });
+
+  if (!data.ok) {
+    throw new Error(`GitHub GraphQL error ${data.status}`);
+  }
+
+  const json = await data.json();
+  if (Array.isArray(json.errors) && json.errors.length > 0) {
+    throw new Error(
+      `GitHub GraphQL error: ${json.errors[0]?.message ?? "unknown"}`
+    );
+  }
+
+  const viewerLogin = json.data?.viewer?.login as string | undefined;
+  const useViewer =
+    typeof viewerLogin === "string" &&
+    viewerLogin.toLowerCase() === username.toLowerCase();
+
+  const nodes = useViewer
+    ? json.data?.viewerRepos?.repositories?.nodes
+    : json.data?.user?.repositories?.nodes;
+
+  accumulateLanguages(Array.isArray(nodes) ? nodes : [], langTotals);
+  return langTotals;
+}
+
+async function fetchLanguageBytesRest(
   username: string
 ): Promise<Map<string, number>> {
   const token = process.env.GITHUB_TOKEN;
 
-  // Check if the requested username owns the token — if so use authenticated
-  // endpoint to include private repos, otherwise fall back to public API.
   let isTokenOwner = false;
   if (token) {
-    const meRes = await fetch("https://api.github.com/user", { headers: headers() });
+    const meRes = await fetch("https://api.github.com/user", {
+      headers: headers(),
+    });
     if (meRes.ok) {
       const me: { login: string } = await meRes.json();
       isTokenOwner = me.login.toLowerCase() === username.toLowerCase();
     }
   }
 
-  const allRepos: { full_name: string; fork: boolean }[] = [];
-  for (let page = 1; page <= 5; page++) {
-    const url = isTokenOwner
+  const pageUrl = (page: number) =>
+    isTokenOwner
       ? `https://api.github.com/user/repos?visibility=all&affiliation=owner&per_page=100&page=${page}&sort=pushed`
-      : `https://api.github.com/users/${username}/repos?per_page=100&page=${page}&sort=pushed`;
-    const res = await fetch(url, { headers: headers() });
-    if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-    const data: { full_name: string; fork: boolean }[] = await res.json();
-    allRepos.push(...data);
-    if (data.length < 100) break;
+      : `https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=100&page=${page}&sort=pushed`;
+
+  const firstRes = await fetch(pageUrl(1), { headers: headers() });
+  if (!firstRes.ok) throw new Error(`GitHub API error ${firstRes.status}`);
+  const firstPage: { full_name: string; fork: boolean }[] =
+    await firstRes.json();
+
+  const allRepos = [...firstPage];
+  if (firstPage.length >= 100) {
+    const extra = await Promise.all(
+      Array.from({ length: 4 }, (_, i) =>
+        fetch(pageUrl(i + 2), { headers: headers() }).then(async (res) => {
+          if (!res.ok) return [] as { full_name: string; fork: boolean }[];
+          return res.json() as Promise<{ full_name: string; fork: boolean }[]>;
+        })
+      )
+    );
+    for (const page of extra) {
+      allRepos.push(...page);
+      if (page.length < 100) break;
+    }
   }
 
-  // Exclude forked repos — they skew results with languages you didn't write
   const ownRepos = allRepos.filter((r) => !r.fork);
   const reposToCheck = ownRepos.slice(0, 50);
   const langTotals = new Map<string, number>();
@@ -163,15 +262,27 @@ async function fetchLanguageBytes(
       })
     );
     for (const r of results) {
-      if (r.status === "fulfilled") {
-        for (const [lang, bytes] of Object.entries(r.value)) {
-          langTotals.set(lang, (langTotals.get(lang) ?? 0) + bytes);
-        }
+      if (r.status !== "fulfilled") continue;
+      for (const [lang, bytes] of Object.entries(r.value)) {
+        langTotals.set(lang, (langTotals.get(lang) ?? 0) + bytes);
       }
     }
   }
 
   return langTotals;
+}
+
+async function fetchLanguageBytes(
+  username: string
+): Promise<Map<string, number>> {
+  if (process.env.GITHUB_TOKEN?.trim()) {
+    try {
+      return await fetchLanguageBytesGraphQL(username);
+    } catch {
+      // Fall through to REST.
+    }
+  }
+  return fetchLanguageBytesRest(username);
 }
 
 function buildSVG(opts: {
