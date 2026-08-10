@@ -651,6 +651,7 @@ interface SearchCommitItem {
 /**
  * Finds primary-author commits on any branch (needed when we skip full branch
  * walks on huge repos). Additive — never removes already-discovered commits.
+ * Uses REST commit search (GraphQL SearchType has no COMMIT).
  */
 async function searchCommitsByAuthor(
   login: string,
@@ -664,86 +665,8 @@ async function searchCommitsByAuthor(
     { commit: GHCommit; fullName: string; isPrivate: boolean }
   >();
 
-  if (hasGithubToken()) {
-    try {
-      type SearchPage = {
-        search: {
-          pageInfo: { hasNextPage: boolean; endCursor: string | null };
-          nodes: Array<{
-            oid: string;
-            url: string;
-            message: string;
-            committedDate: string;
-            authoredDate: string;
-            additions: number;
-            deletions: number;
-            author: {
-              email: string | null;
-              user: { login: string } | null;
-            } | null;
-            repository: { nameWithOwner: string; isPrivate: boolean } | null;
-          } | null>;
-        };
-      };
-
-      const q = `author:${login} author-date:${from}..${to}`;
-      const query = `query($q: String!, $cursor: String) {
-        search(query: $q, type: COMMIT, first: 100, after: $cursor) {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            ... on Commit {
-              oid
-              url
-              message
-              committedDate
-              authoredDate
-              additions
-              deletions
-              author { email user { login } }
-              repository { nameWithOwner isPrivate }
-            }
-          }
-        }
-      }`;
-
-      let cursor: string | null = null;
-      for (let page = 0; page < 10; page++) {
-        const data: SearchPage = await ghGraphQL<SearchPage>(query, {
-          q,
-          cursor,
-        });
-        for (const node of data.search.nodes) {
-          if (!node?.oid || !node.repository?.nameWithOwner) continue;
-          if (bySha.has(node.oid)) continue;
-          const commit = gqlCommitToGH(node);
-          bySha.set(node.oid, {
-            fullName: node.repository.nameWithOwner,
-            isPrivate: node.repository.isPrivate,
-            commit,
-          });
-        }
-        if (!data.search.pageInfo.hasNextPage || bySha.size >= 1000) break;
-        cursor = data.search.pageInfo.endCursor;
-      }
-
-      if (bySha.size > 0) return bySha;
-    } catch {
-      // Fall through to REST search.
-    }
-  }
-
   const query = `author:${login} author-date:${from}..${to}`;
   const PAGE_CAP = 10;
-
-  // Prefetch search pages simultaneously after learning page 1 has more.
-  const firstUrl =
-    `${GITHUB_API}/search/commits` +
-    `?q=${encodeURIComponent(query)}` +
-    `&per_page=100&page=1`;
-  const firstData = await ghFetch(firstUrl).catch(() => null);
-  const firstItems: SearchCommitItem[] = Array.isArray(firstData?.items)
-    ? firstData.items
-    : [];
 
   const ingest = (items: SearchCommitItem[]) => {
     for (const item of items) {
@@ -762,6 +685,16 @@ async function searchCommitsByAuthor(
       });
     }
   };
+
+  // Prefetch search pages simultaneously after learning page 1 has more.
+  const firstUrl =
+    `${GITHUB_API}/search/commits` +
+    `?q=${encodeURIComponent(query)}` +
+    `&per_page=100&page=1`;
+  const firstData = await ghFetch(firstUrl).catch(() => null);
+  const firstItems: SearchCommitItem[] = Array.isArray(firstData?.items)
+    ? firstData.items
+    : [];
 
   ingest(firstItems);
 
