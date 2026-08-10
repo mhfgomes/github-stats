@@ -187,28 +187,44 @@ interface GHPull {
   updated_at: string;
 }
 
+interface CommitRefs {
+  refs: string[];
+  /** False when the repo has 100+ branches — we skip full branch enumeration. */
+  exhaustiveBranches: boolean;
+}
+
 /**
  * GitHub's commits list defaults to the repository default branch only.
  * Collect branch names and recent PR head refs so feature-branch / PR work is included.
+ *
+ * Repos with 100+ branches (e.g. EpicGames/zen) skip full branch enumeration —
+ * those are covered by commit search + HEAD + PR heads instead.
  */
 async function getCommitRefs(
   fullName: string,
   from: string
-): Promise<string[]> {
+): Promise<CommitRefs> {
   const refs = new Set<string>();
   const fromTs = new Date(`${from}T00:00:00Z`).getTime();
   const PAGE_CAP = 5;
 
-  for (let branchPage = 1; branchPage <= PAGE_CAP; branchPage++) {
-    const url =
-      `${GITHUB_API}/repos/${fullName}/branches` +
-      `?per_page=100&page=${branchPage}`;
-    const data: GHBranch[] = await ghFetch(url).catch(() => [] as GHBranch[]);
-    if (!Array.isArray(data) || data.length === 0) break;
-    for (const branch of data) {
+  const firstBranchUrl =
+    `${GITHUB_API}/repos/${fullName}/branches` + `?per_page=100&page=1`;
+  const firstBranches: GHBranch[] = await ghFetch(firstBranchUrl).catch(
+    () => [] as GHBranch[]
+  );
+  const exhaustiveBranches = !(
+    Array.isArray(firstBranches) && firstBranches.length >= 100
+  );
+
+  if (exhaustiveBranches) {
+    for (const branch of firstBranches) {
       if (branch?.name) refs.add(branch.name);
     }
-    if (data.length < 100) break;
+    // first page < 100 ⇒ no further branch pages
+  } else {
+    // Huge repo: do not walk hundreds of branches (multi-second no-op when idle).
+    refs.add("HEAD");
   }
 
   // Include PR head refs updated in/after the range (covers deleted head branches).
@@ -233,7 +249,7 @@ async function getCommitRefs(
 
   // Always query the default tip even if branch listing failed (empty → default).
   if (refs.size === 0) refs.add("HEAD");
-  return [...refs];
+  return { refs: [...refs], exhaustiveBranches };
 }
 
 async function getCommitsForRef(
@@ -267,9 +283,9 @@ async function getCommitsInRepo(
   until: string,
   from: string
 ): Promise<GHCommit[]> {
-  const refs = await getCommitRefs(fullName, from);
+  const { refs } = await getCommitRefs(fullName, from);
   const bySha = new Map<string, GHCommit>();
-  const REF_CONCURRENCY = 6;
+  const REF_CONCURRENCY = 8;
 
   for (let i = 0; i < refs.length; i += REF_CONCURRENCY) {
     const batch = refs.slice(i, i + REF_CONCURRENCY);
@@ -286,6 +302,62 @@ async function getCommitsInRepo(
   }
 
   return [...bySha.values()];
+}
+
+interface SearchCommitItem {
+  sha: string;
+  html_url: string;
+  author: { login: string } | null;
+  commit: GHCommit["commit"];
+  repository?: { full_name?: string; private?: boolean };
+}
+
+/**
+ * Finds primary-author commits on any branch (needed when we skip full branch
+ * walks on huge repos). Additive — never removes REST-discovered commits.
+ */
+async function searchCommitsByAuthor(
+  login: string,
+  from: string,
+  to: string
+): Promise<Map<string, { commit: GHCommit; fullName: string; isPrivate: boolean }>> {
+  const bySha = new Map<
+    string,
+    { commit: GHCommit; fullName: string; isPrivate: boolean }
+  >();
+  const query = `author:${login} author-date:${from}..${to}`;
+  const PAGE_CAP = 10;
+
+  for (let page = 1; page <= PAGE_CAP; page++) {
+    const url =
+      `${GITHUB_API}/search/commits` +
+      `?q=${encodeURIComponent(query)}` +
+      `&per_page=100&page=${page}`;
+    const data = await ghFetch(url).catch(() => null);
+    const items: SearchCommitItem[] = Array.isArray(data?.items) ? data.items : [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const fullName = item.repository?.full_name;
+      if (!fullName || !item.sha) continue;
+      if (bySha.has(item.sha)) continue;
+      bySha.set(item.sha, {
+        fullName,
+        isPrivate: Boolean(item.repository?.private),
+        commit: {
+          sha: item.sha,
+          html_url: item.html_url,
+          author: item.author,
+          commit: item.commit,
+        },
+      });
+    }
+
+    if (items.length < 100) break;
+    if (bySha.size >= 1000) break;
+  }
+
+  return bySha;
 }
 
 async function getCommitDetail(
@@ -435,17 +507,29 @@ export async function fetchRawCommits(
   const since = `${from}T00:00:00Z`;
   const until = `${to}T23:59:59Z`;
 
-  const [identity, repos] = await Promise.all([
+  const [identity, repos, searched] = await Promise.all([
     resolveUserIdentity(username),
     getAllRepos(from),
+    searchCommitsByAuthor(username.toLowerCase(), from, to),
   ]);
 
+  const repoByName = new Map(repos.map((r) => [r.full_name, r]));
+  const pending = new Map<
+    string,
+    { fullName: string; isPrivate: boolean; commit: GHCommit }
+  >();
+
+  // Search covers primary authorship on skipped branches of huge repos.
+  for (const [sha, entry] of searched) {
+    const known = repoByName.get(entry.fullName);
+    pending.set(sha, {
+      fullName: entry.fullName,
+      isPrivate: known?.private ?? entry.isPrivate,
+      commit: entry.commit,
+    });
+  }
+
   const REPO_CONCURRENCY = 20;
-  const pending: Array<{
-    fullName: string;
-    isPrivate: boolean;
-    commit: GHCommit;
-  }> = [];
 
   for (let i = 0; i < repos.length; i += REPO_CONCURRENCY) {
     const batch = repos.slice(i, i + REPO_CONCURRENCY);
@@ -466,11 +550,16 @@ export async function fetchRawCommits(
       })
     );
     for (const r of settled) {
-      if (r.status === "fulfilled") pending.push(...r.value);
+      if (r.status !== "fulfilled") continue;
+      for (const item of r.value) {
+        if (!pending.has(item.commit.sha)) {
+          pending.set(item.commit.sha, item);
+        }
+      }
     }
   }
 
-  return fetchStats(pending);
+  return fetchStats([...pending.values()]);
 }
 
 export function aggregateCommits(
