@@ -14,7 +14,7 @@ A Next.js app that calculates daily GitHub activity for a user, including total 
 
 - Next.js (App Router) + React + TypeScript
 - Tailwind CSS + shadcn/ui components
-- GitHub GraphQL API (REST fallback)
+- GitHub REST API + GraphQL for batched commit diffs / languages
 
 ## Getting Started
 
@@ -100,9 +100,9 @@ lib/                # GitHub and server-side stats logic
 
 ## Rate Limit and Caching
 
-- `/api/stats` uses GitHub GraphQL (batched + parallel) with REST fallback, and caches responses in-memory for 2 minutes.
+- `/api/stats` uses the same commit discovery as production, batches diff stats via GraphQL (parallel) with REST fallback, and caches responses in-memory for 2 minutes.
 - Banner endpoints keep a short in-memory TTL cache and send 5 minute cache headers.
-- `GITHUB_TOKEN` is recommended to avoid hitting GitHub rate limits (required for GraphQL and private repos).
+- `GITHUB_TOKEN` is recommended to avoid hitting GitHub rate limits (required for GraphQL batching and private repos).
 
 ## License
 
