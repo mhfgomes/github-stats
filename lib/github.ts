@@ -62,6 +62,7 @@ interface UserIdentity {
   login: string;
   id: number;
   emails: Set<string>;
+  isSelf: boolean;
 }
 
 async function ghFetch(url: string) {
@@ -73,22 +74,50 @@ async function ghFetch(url: string) {
   return res.json();
 }
 
+async function ghGraphQL<T>(
+  query: string,
+  variables: Record<string, string>
+): Promise<T> {
+  const res = await fetch(`${GITHUB_API}/graphql`, {
+    method: "POST",
+    headers: {
+      ...githubHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GitHub GraphQL error ${res.status}: ${body}`);
+  }
+  const json = await res.json();
+  if (Array.isArray(json.errors) && json.errors.length > 0) {
+    throw new Error(`GitHub GraphQL error: ${json.errors[0]?.message ?? "unknown"}`);
+  }
+  return json.data as T;
+}
+
 /** Resolve emails/logins used to attribute primary + Co-authored-by commits. */
 async function resolveUserIdentity(username: string): Promise<UserIdentity> {
   const login = username.toLowerCase();
-  const user = await ghFetch(`${GITHUB_API}/users/${encodeURIComponent(username)}`);
-  const emails = new Set<string>();
+  const [user, me] = await Promise.all([
+    ghFetch(`${GITHUB_API}/users/${encodeURIComponent(username)}`),
+    ghFetch(`${GITHUB_API}/user`).catch(() => null),
+  ]);
 
+  const emails = new Set<string>();
   if (typeof user.email === "string" && user.email) {
     emails.add(user.email.toLowerCase());
   }
   emails.add(`${login}@users.noreply.github.com`);
   emails.add(`${user.id}+${login}@users.noreply.github.com`);
 
+  const isSelf =
+    typeof me?.login === "string" && me.login.toLowerCase() === login;
+
   // When the token belongs to the searched user, include private emails too.
-  try {
-    const me = await ghFetch(`${GITHUB_API}/user`);
-    if (typeof me.login === "string" && me.login.toLowerCase() === login) {
+  if (isSelf) {
+    try {
       const myEmails = await ghFetch(`${GITHUB_API}/user/emails`);
       if (Array.isArray(myEmails)) {
         for (const entry of myEmails) {
@@ -97,12 +126,12 @@ async function resolveUserIdentity(username: string): Promise<UserIdentity> {
           }
         }
       }
+    } catch {
+      // Missing user:email scope — noreply forms still work.
     }
-  } catch {
-    // Unauthenticated or missing user:email scope — noreply forms still work.
   }
 
-  return { login, id: user.id as number, emails };
+  return { login, id: user.id as number, emails, isSelf };
 }
 
 function coAuthorEmails(message: string): string[] {
@@ -134,28 +163,84 @@ async function getAllRepos(from: string): Promise<GHRepo[]> {
     `${GITHUB_API}/user/repos` +
     `?visibility=all&affiliation=owner,collaborator,organization_member&per_page=100&sort=pushed`;
 
-  const firstPage: GHRepo[] = await ghFetch(`${base}&page=1`);
-  if (!firstPage.length) return [];
+  const repos: GHRepo[] = [];
+  const PAGE_CAP = 10;
 
-  const lastOnPage = new Date(firstPage[firstPage.length - 1].pushed_at).getTime();
-  if (lastOnPage < fromTs) {
-    return firstPage.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
+  for (let page = 1; page <= PAGE_CAP; page++) {
+    const data: GHRepo[] = await ghFetch(`${base}&page=${page}`).catch(
+      () => [] as GHRepo[]
+    );
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    for (const repo of data) {
+      if (new Date(repo.pushed_at).getTime() >= fromTs) repos.push(repo);
+    }
+
+    const lastOnPage = new Date(data[data.length - 1].pushed_at).getTime();
+    if (lastOnPage < fromTs || data.length < 100) break;
   }
 
-  const PAGE_CAP = 10;
-  const extraPages = await Promise.all(
-    Array.from({ length: PAGE_CAP - 1 }, (_, i) =>
-      ghFetch(`${base}&page=${i + 2}`).catch(() => [] as GHRepo[])
-    )
-  );
+  return repos;
+}
 
-  const all = [...firstPage, ...extraPages.flat()];
-  return all.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
+interface GHEvent {
+  type: string;
+  created_at: string;
+  repo?: { name?: string };
+}
+
+/**
+ * Recent events tell us which repos the user actually touched, so we can skip
+ * scanning huge collaborator repos that were only pushed by someone else.
+ */
+async function getActiveRepoNames(
+  username: string,
+  from: string,
+  to: string,
+  isSelf: boolean
+): Promise<Set<string>> {
+  const fromTs = new Date(`${from}T00:00:00Z`).getTime();
+  const toTs = new Date(`${to}T23:59:59Z`).getTime();
+  const active = new Set<string>();
+  const PAGE_CAP = 5;
+
+  const endpoint = isSelf
+    ? `${GITHUB_API}/user/events`
+    : `${GITHUB_API}/users/${encodeURIComponent(username)}/events`;
+
+  for (let page = 1; page <= PAGE_CAP; page++) {
+    const data: GHEvent[] = await ghFetch(
+      `${endpoint}?per_page=100&page=${page}`
+    ).catch(() => [] as GHEvent[]);
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    for (const event of data) {
+      const ts = new Date(event.created_at).getTime();
+      if (ts > toTs) continue;
+      if (ts < fromTs) continue;
+
+      if (
+        event.type === "PushEvent" ||
+        event.type === "PullRequestEvent" ||
+        event.type === "CreateEvent" ||
+        event.type === "CommitCommentEvent"
+      ) {
+        const name = event.repo?.name;
+        if (name) active.add(name);
+      }
+    }
+
+    const lastTs = new Date(data[data.length - 1].created_at).getTime();
+    if (lastTs < fromTs || data.length < 100) break;
+  }
+
+  return active;
 }
 
 interface GHPull {
   number: number;
   updated_at: string;
+  user?: { login?: string } | null;
 }
 
 /**
@@ -163,10 +248,14 @@ interface GHPull {
  * Query HEAD plus PR head refs updated in range so feature-branch / PR work is
  * included — without enumerating every branch (pathological on huge repos).
  */
-async function getCommitRefs(fullName: string, from: string): Promise<string[]> {
+async function getCommitRefs(
+  fullName: string,
+  from: string,
+  login: string
+): Promise<string[]> {
   const refs = new Set<string>(["HEAD"]);
   const fromTs = new Date(`${from}T00:00:00Z`).getTime();
-  const PAGE_CAP = 5;
+  const PAGE_CAP = 3;
 
   for (let pullPage = 1; pullPage <= PAGE_CAP; pullPage++) {
     const url =
@@ -182,6 +271,9 @@ async function getCommitRefs(fullName: string, from: string): Promise<string[]> 
         reachedOlder = true;
         break;
       }
+      // Prefer PRs the user authored — cuts noise on busy org repos.
+      const author = pull.user?.login?.toLowerCase();
+      if (author && author !== login) continue;
       refs.add(`refs/pull/${pull.number}/head`);
     }
     if (reachedOlder || data.length < 100) break;
@@ -240,7 +332,6 @@ async function searchCommitsByAuthor(
     }
 
     if (items.length < 100) break;
-    // Search API hard-caps around 1000 results.
     if (bySha.size >= 1000) break;
   }
 
@@ -252,7 +343,7 @@ async function getCommitsForRef(
   since: string,
   until: string,
   sha: string,
-  pageCap = 10
+  pageCap = 5
 ): Promise<GHCommit[]> {
   const commits: GHCommit[] = [];
   let page = 1;
@@ -274,8 +365,7 @@ async function getCommitsForRef(
 
 /**
  * Collect commits attributed to the user in one repo on HEAD + recent PR heads.
- * Primary authorship on other branches comes from searchCommitsByAuthor (avoids
- * enumerating every branch on huge repos like UnrealEngine).
+ * Primary authorship on other branches comes from searchCommitsByAuthor.
  */
 async function getCommitsInRepo(
   fullName: string,
@@ -284,7 +374,7 @@ async function getCommitsInRepo(
   until: string,
   from: string
 ): Promise<GHCommit[]> {
-  const refs = await getCommitRefs(fullName, from);
+  const refs = await getCommitRefs(fullName, from, identity.login);
   const bySha = new Map<string, GHCommit>();
   const REF_CONCURRENCY = 6;
 
@@ -316,6 +406,75 @@ async function getCommitDetail(
   };
 }
 
+/** Batch additions/deletions via GraphQL (one request per ~40 commits). */
+async function fetchCommitStatsBatch(
+  items: Array<{ fullName: string; sha: string }>
+): Promise<Map<string, { additions: number; deletions: number }>> {
+  const results = new Map<string, { additions: number; deletions: number }>();
+  if (items.length === 0) return results;
+
+  const BATCH_SIZE = 40;
+
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    const varDefs: string[] = [];
+    const fields: string[] = [];
+    const variables: Record<string, string> = {};
+
+    batch.forEach((item, idx) => {
+      const [owner, name] = item.fullName.split("/");
+      if (!owner || !name) return;
+      varDefs.push(
+        `$o${idx}: String!`,
+        `$n${idx}: String!`,
+        `$s${idx}: GitObjectID!`
+      );
+      variables[`o${idx}`] = owner;
+      variables[`n${idx}`] = name;
+      variables[`s${idx}`] = item.sha;
+      fields.push(`
+        c${idx}: repository(owner: $o${idx}, name: $n${idx}) {
+          object(oid: $s${idx}) {
+            ... on Commit { additions deletions }
+          }
+        }
+      `);
+    });
+
+    if (fields.length === 0) continue;
+
+    try {
+      const query = `query(${varDefs.join(", ")}) { ${fields.join("\n")} }`;
+      const data = await ghGraphQL<
+        Record<string, { object?: { additions?: number; deletions?: number } | null } | null>
+      >(query, variables);
+
+      batch.forEach((item, idx) => {
+        const obj = data[`c${idx}`]?.object;
+        results.set(`${item.fullName}@${item.sha}`, {
+          additions: obj?.additions ?? 0,
+          deletions: obj?.deletions ?? 0,
+        });
+      });
+    } catch {
+      // Fallback to REST if GraphQL is unavailable / partial failure.
+      const settled = await Promise.allSettled(
+        batch.map(async (item) => {
+          const stats = await getCommitDetail(item.fullName, item.sha);
+          return { key: `${item.fullName}@${item.sha}`, stats };
+        })
+      );
+      for (const result of settled) {
+        if (result.status === "fulfilled") {
+          results.set(result.value.key, result.value.stats);
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 /** Opaque stable id so private repos stay distinct without revealing names. */
 function privateRepoId(fullName: string): string {
   let hash = 2166136261;
@@ -327,33 +486,44 @@ function privateRepoId(fullName: string): string {
 }
 
 async function fetchStats(
-  items: Array<{ fullName: string; isPrivate: boolean; commit: GHCommit }>,
-  concurrency = 20
+  items: Array<{ fullName: string; isPrivate: boolean; commit: GHCommit }>
 ): Promise<CommitStats[]> {
+  const statsMap = await fetchCommitStatsBatch(
+    items.map((item) => ({ fullName: item.fullName, sha: item.commit.sha }))
+  );
+
   const results: CommitStats[] = [];
-  for (let i = 0; i < items.length; i += concurrency) {
-    const batch = items.slice(i, i + concurrency);
-    const settled = await Promise.allSettled(
-      batch.map(async ({ fullName, isPrivate, commit }) => {
-        const stats = await getCommitDetail(fullName, commit.sha);
-        const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
-        return {
-          sha: isPrivate ? `private:${commit.sha.slice(0, 7)}` : commit.sha,
-          repo: isPrivate ? `private:${privateRepoId(fullName)}` : fullName,
-          repoUrl: isPrivate ? null : repoUrl,
-          message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
-          date: commit.commit.committer.date,
-          commitUrl: isPrivate ? null : commit.html_url,
-          ...stats,
-          isPrivate,
-        } satisfies CommitStats;
-      })
-    );
-    for (const r of settled) {
-      if (r.status === "fulfilled") results.push(r.value);
-    }
+  for (const { fullName, isPrivate, commit } of items) {
+    const stats = statsMap.get(`${fullName}@${commit.sha}`) ?? {
+      additions: 0,
+      deletions: 0,
+    };
+    const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
+    results.push({
+      sha: isPrivate ? `private:${commit.sha.slice(0, 7)}` : commit.sha,
+      repo: isPrivate ? `private:${privateRepoId(fullName)}` : fullName,
+      repoUrl: isPrivate ? null : repoUrl,
+      message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
+      date: commit.commit.committer.date,
+      commitUrl: isPrivate ? null : commit.html_url,
+      ...stats,
+      isPrivate,
+    });
   }
   return results;
+}
+
+function shouldDeepScanRepo(
+  fullName: string,
+  identity: UserIdentity,
+  activeRepos: Set<string>,
+  searchedRepos: Set<string>
+): boolean {
+  const owner = fullName.split("/")[0]?.toLowerCase() ?? "";
+  if (owner === identity.login) return true;
+  if (activeRepos.has(fullName)) return true;
+  if (searchedRepos.has(fullName)) return true;
+  return false;
 }
 
 export async function fetchRawCommits(
@@ -364,10 +534,12 @@ export async function fetchRawCommits(
   const since = `${from}T00:00:00Z`;
   const until = `${to}T23:59:59Z`;
 
-  const [identity, repos, searched] = await Promise.all([
-    resolveUserIdentity(username),
+  const identity = await resolveUserIdentity(username);
+
+  const [repos, searched, activeRepos] = await Promise.all([
     getAllRepos(from),
-    searchCommitsByAuthor(username.toLowerCase(), from, to),
+    searchCommitsByAuthor(identity.login, from, to),
+    getActiveRepoNames(username, from, to, identity.isSelf),
   ]);
 
   const repoByName = new Map(repos.map((r) => [r.full_name, r]));
@@ -376,7 +548,9 @@ export async function fetchRawCommits(
     { fullName: string; isPrivate: boolean; commit: GHCommit }
   >();
 
+  const searchedRepos = new Set<string>();
   for (const [sha, entry] of searched) {
+    searchedRepos.add(entry.fullName);
     const known = repoByName.get(entry.fullName);
     pending.set(sha, {
       fullName: entry.fullName,
@@ -385,10 +559,19 @@ export async function fetchRawCommits(
     });
   }
 
-  const REPO_CONCURRENCY = 20;
+  const reposToScan = repos.filter((repo) =>
+    shouldDeepScanRepo(
+      repo.full_name,
+      identity,
+      activeRepos,
+      searchedRepos
+    )
+  );
 
-  for (let i = 0; i < repos.length; i += REPO_CONCURRENCY) {
-    const batch = repos.slice(i, i + REPO_CONCURRENCY);
+  const REPO_CONCURRENCY = 8;
+
+  for (let i = 0; i < reposToScan.length; i += REPO_CONCURRENCY) {
+    const batch = reposToScan.slice(i, i + REPO_CONCURRENCY);
     const settled = await Promise.allSettled(
       batch.map(async (repo) => {
         const commits = await getCommitsInRepo(

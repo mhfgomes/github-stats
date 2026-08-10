@@ -3,8 +3,8 @@ import { resolveStats } from "@/lib/stats-server";
 import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
 import type { DayStats } from "@/lib/github";
 
-const STATS_CACHE_TTL_MS = 60_000;
-const STATS_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=30";
+const STATS_CACHE_TTL_MS = 120_000;
+const STATS_CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=60";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;

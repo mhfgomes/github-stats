@@ -100,7 +100,7 @@ lib/                # GitHub and server-side stats logic
 
 ## Rate Limit and Caching
 
-- `/api/stats` uses GitHub commit search plus HEAD/PR-head scans (not every branch), then caches responses in-memory for 60s with matching `Cache-Control` headers.
+- `/api/stats` uses commit search + activity events to avoid scanning untouched collaborator repos, batches diff stats via GraphQL, and caches responses in-memory for 2 minutes.
 - Banner endpoints keep a short in-memory TTL cache and send 5 minute cache headers.
 - `GITHUB_TOKEN` is recommended to avoid hitting GitHub rate limits (and is required for private repos / commit search completeness).
 
