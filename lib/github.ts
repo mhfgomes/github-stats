@@ -153,10 +153,6 @@ async function getAllRepos(from: string): Promise<GHRepo[]> {
   return all.filter((r) => new Date(r.pushed_at).getTime() >= fromTs);
 }
 
-interface GHBranch {
-  name: string;
-}
-
 interface GHPull {
   number: number;
   updated_at: string;
@@ -164,29 +160,14 @@ interface GHPull {
 
 /**
  * GitHub's commits list defaults to the repository default branch only.
- * Collect branch names and recent PR head refs so feature-branch / PR work is included.
+ * Query HEAD plus PR head refs updated in range so feature-branch / PR work is
+ * included — without enumerating every branch (pathological on huge repos).
  */
-async function getCommitRefs(
-  fullName: string,
-  from: string
-): Promise<string[]> {
-  const refs = new Set<string>();
+async function getCommitRefs(fullName: string, from: string): Promise<string[]> {
+  const refs = new Set<string>(["HEAD"]);
   const fromTs = new Date(`${from}T00:00:00Z`).getTime();
   const PAGE_CAP = 5;
 
-  for (let branchPage = 1; branchPage <= PAGE_CAP; branchPage++) {
-    const url =
-      `${GITHUB_API}/repos/${fullName}/branches` +
-      `?per_page=100&page=${branchPage}`;
-    const data: GHBranch[] = await ghFetch(url).catch(() => [] as GHBranch[]);
-    if (!Array.isArray(data) || data.length === 0) break;
-    for (const branch of data) {
-      if (branch?.name) refs.add(branch.name);
-    }
-    if (data.length < 100) break;
-  }
-
-  // Include PR head refs updated in/after the range (covers deleted head branches).
   for (let pullPage = 1; pullPage <= PAGE_CAP; pullPage++) {
     const url =
       `${GITHUB_API}/repos/${fullName}/pulls` +
@@ -206,20 +187,76 @@ async function getCommitRefs(
     if (reachedOlder || data.length < 100) break;
   }
 
-  // Always query the default tip even if branch listing failed (empty → default).
-  if (refs.size === 0) refs.add("HEAD");
   return [...refs];
+}
+
+interface SearchCommitItem {
+  sha: string;
+  html_url: string;
+  author: { login: string } | null;
+  commit: GHCommit["commit"];
+  repository?: { full_name?: string; private?: boolean };
+}
+
+/**
+ * Commit search finds primary-author commits on any branch in one query,
+ * avoiding per-branch listing on large repos (e.g. UnrealEngine).
+ */
+async function searchCommitsByAuthor(
+  login: string,
+  from: string,
+  to: string
+): Promise<Map<string, { commit: GHCommit; fullName: string; isPrivate: boolean }>> {
+  const bySha = new Map<
+    string,
+    { commit: GHCommit; fullName: string; isPrivate: boolean }
+  >();
+  const query = `author:${login} author-date:${from}..${to}`;
+  const PAGE_CAP = 10;
+
+  for (let page = 1; page <= PAGE_CAP; page++) {
+    const url =
+      `${GITHUB_API}/search/commits` +
+      `?q=${encodeURIComponent(query)}` +
+      `&per_page=100&page=${page}`;
+    const data = await ghFetch(url).catch(() => null);
+    const items: SearchCommitItem[] = Array.isArray(data?.items) ? data.items : [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      const fullName = item.repository?.full_name;
+      if (!fullName || !item.sha) continue;
+      if (bySha.has(item.sha)) continue;
+      bySha.set(item.sha, {
+        fullName,
+        isPrivate: Boolean(item.repository?.private),
+        commit: {
+          sha: item.sha,
+          html_url: item.html_url,
+          author: item.author,
+          commit: item.commit,
+        },
+      });
+    }
+
+    if (items.length < 100) break;
+    // Search API hard-caps around 1000 results.
+    if (bySha.size >= 1000) break;
+  }
+
+  return bySha;
 }
 
 async function getCommitsForRef(
   fullName: string,
   since: string,
   until: string,
-  sha: string
+  sha: string,
+  pageCap = 10
 ): Promise<GHCommit[]> {
   const commits: GHCommit[] = [];
   let page = 1;
-  while (true) {
+  while (page <= pageCap) {
     const url =
       `${GITHUB_API}/repos/${fullName}/commits` +
       `?since=${encodeURIComponent(since)}` +
@@ -235,6 +272,11 @@ async function getCommitsForRef(
   return commits;
 }
 
+/**
+ * Collect commits attributed to the user in one repo on HEAD + recent PR heads.
+ * Primary authorship on other branches comes from searchCommitsByAuthor (avoids
+ * enumerating every branch on huge repos like UnrealEngine).
+ */
 async function getCommitsInRepo(
   fullName: string,
   identity: UserIdentity,
@@ -249,7 +291,7 @@ async function getCommitsInRepo(
   for (let i = 0; i < refs.length; i += REF_CONCURRENCY) {
     const batch = refs.slice(i, i + REF_CONCURRENCY);
     const settled = await Promise.allSettled(
-      batch.map((ref) => getCommitsForRef(fullName, since, until, ref))
+      batch.map((ref) => getCommitsForRef(fullName, since, until, ref, 5))
     );
     for (const result of settled) {
       if (result.status !== "fulfilled") continue;
@@ -322,13 +364,28 @@ export async function fetchRawCommits(
   const since = `${from}T00:00:00Z`;
   const until = `${to}T23:59:59Z`;
 
-  const [identity, repos] = await Promise.all([
+  const [identity, repos, searched] = await Promise.all([
     resolveUserIdentity(username),
     getAllRepos(from),
+    searchCommitsByAuthor(username.toLowerCase(), from, to),
   ]);
 
+  const repoByName = new Map(repos.map((r) => [r.full_name, r]));
+  const pending = new Map<
+    string,
+    { fullName: string; isPrivate: boolean; commit: GHCommit }
+  >();
+
+  for (const [sha, entry] of searched) {
+    const known = repoByName.get(entry.fullName);
+    pending.set(sha, {
+      fullName: entry.fullName,
+      isPrivate: known?.private ?? entry.isPrivate,
+      commit: entry.commit,
+    });
+  }
+
   const REPO_CONCURRENCY = 20;
-  const allCommits: CommitStats[] = [];
 
   for (let i = 0; i < repos.length; i += REPO_CONCURRENCY) {
     const batch = repos.slice(i, i + REPO_CONCURRENCY);
@@ -341,22 +398,25 @@ export async function fetchRawCommits(
           until,
           from
         );
-        if (commits.length === 0) return [] as CommitStats[];
-        return fetchStats(
-          commits.map((c) => ({
-            fullName: repo.full_name,
-            isPrivate: repo.private,
-            commit: c,
-          }))
-        );
+        return commits.map((commit) => ({
+          fullName: repo.full_name,
+          isPrivate: repo.private,
+          commit,
+        }));
       })
     );
+
     for (const r of settled) {
-      if (r.status === "fulfilled") allCommits.push(...r.value);
+      if (r.status !== "fulfilled") continue;
+      for (const item of r.value) {
+        if (!pending.has(item.commit.sha)) {
+          pending.set(item.commit.sha, item);
+        }
+      }
     }
   }
 
-  return allCommits;
+  return fetchStats([...pending.values()]);
 }
 
 export function aggregateCommits(
