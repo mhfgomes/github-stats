@@ -100,7 +100,7 @@ lib/                # GitHub and server-side stats logic
 
 ## Rate Limit and Caching
 
-- `/api/stats` uses the same commit discovery as production, batches diff stats via GraphQL (parallel) with REST fallback, and caches responses in-memory for 2 minutes.
+- `/api/stats` walks branches + PR heads like production for normal repos; huge 100+ branch repos (e.g. EpicGames) use HEAD + PRs + commit search. Diff stats are batched via parallel GraphQL with REST fallback, and responses are cached in-memory for 2 minutes.
 - Banner endpoints keep a short in-memory TTL cache and send 5 minute cache headers.
 - `GITHUB_TOKEN` is recommended to avoid hitting GitHub rate limits (required for GraphQL batching and private repos).
 
