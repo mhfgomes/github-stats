@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ghFetch } from "@/lib/github";
 import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
 
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
@@ -107,15 +108,6 @@ function escapeXml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
-function headers() {
-  const token = process.env.GITHUB_TOKEN;
-  return {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 async function fetchLanguageBytes(
   username: string
 ): Promise<Map<string, number>> {
@@ -125,48 +117,50 @@ async function fetchLanguageBytes(
   // endpoint to include private repos, otherwise fall back to public API.
   let isTokenOwner = false;
   if (token) {
-    const meRes = await fetch("https://api.github.com/user", { headers: headers() });
-    if (meRes.ok) {
-      const me: { login: string } = await meRes.json();
+    const me = await ghFetch("https://api.github.com/user").catch(() => null);
+    if (me && typeof me.login === "string") {
       isTokenOwner = me.login.toLowerCase() === username.toLowerCase();
     }
   }
 
-  const allRepos: { full_name: string; fork: boolean }[] = [];
-  for (let page = 1; page <= 5; page++) {
-    const url = isTokenOwner
+  const PAGE_CAP = 5;
+  const repoUrl = (page: number) =>
+    isTokenOwner
       ? `https://api.github.com/user/repos?visibility=all&affiliation=owner&per_page=100&page=${page}&sort=pushed`
       : `https://api.github.com/users/${username}/repos?per_page=100&page=${page}&sort=pushed`;
-    const res = await fetch(url, { headers: headers() });
-    if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-    const data: { full_name: string; fork: boolean }[] = await res.json();
-    allRepos.push(...data);
-    if (data.length < 100) break;
-  }
+
+  const firstPage: { full_name: string; fork: boolean }[] = await ghFetch(
+    repoUrl(1)
+  );
+  const extraPages =
+    firstPage.length === 100
+      ? await Promise.all(
+          Array.from({ length: PAGE_CAP - 1 }, (_, i) =>
+            ghFetch(repoUrl(i + 2)).catch(
+              () => [] as { full_name: string; fork: boolean }[]
+            )
+          )
+        )
+      : [];
+  const allRepos = [firstPage, ...extraPages].flat();
 
   // Exclude forked repos — they skew results with languages you didn't write
   const ownRepos = allRepos.filter((r) => !r.fork);
   const reposToCheck = ownRepos.slice(0, 50);
   const langTotals = new Map<string, number>();
 
-  const BATCH = 20;
-  for (let i = 0; i < reposToCheck.length; i += BATCH) {
-    const batch = reposToCheck.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
-      batch.map(async (repo) => {
-        const res = await fetch(
-          `https://api.github.com/repos/${repo.full_name}/languages`,
-          { headers: headers() }
-        );
-        if (!res.ok) return {} as Record<string, number>;
-        return res.json() as Promise<Record<string, number>>;
-      })
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        for (const [lang, bytes] of Object.entries(r.value)) {
-          langTotals.set(lang, (langTotals.get(lang) ?? 0) + bytes);
-        }
+  const results = await Promise.allSettled(
+    reposToCheck.map(async (repo) => {
+      const data = await ghFetch(
+        `https://api.github.com/repos/${repo.full_name}/languages`
+      ).catch(() => ({} as Record<string, number>));
+      return data as Record<string, number>;
+    })
+  );
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      for (const [lang, bytes] of Object.entries(r.value)) {
+        langTotals.set(lang, (langTotals.get(lang) ?? 0) + bytes);
       }
     }
   }
