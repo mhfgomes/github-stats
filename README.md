@@ -152,20 +152,23 @@ Returns an SVG showing the most-used languages across a user's non-fork reposito
 ![Most used languages](https://your-domain.example/api/languages-banner?username=torvalds&top=8)
 ```
 
-The language endpoint checks up to 500 recently pushed repositories, excludes forks, and calculates language totals for up to the first 50 owned repositories. If the configured token belongs to the requested user, private owned repositories may be included.
+The language endpoint checks up to 50 recently pushed owned non-fork repositories. If the configured token belongs to the requested user, private owned repositories may be included. Without a token, or if GraphQL is unavailable, it falls back to REST: up to 500 recently pushed repositories, excluding forks, then language totals for up to the first 50 owned repositories.
 
 ## How activity is calculated
 
 The app queries repositories available to the authenticated GitHub user, then checks branches and recent pull-request head refs for commits in the requested period. This means activity searches are limited to repositories the token can access. Duplicate commits are removed by SHA. A commit is attributed to the requested user by GitHub login, a known email address, or a matching `Co-authored-by` trailer.
 
-Additions and deletions require fetching commit details, so large date ranges or active accounts can make many GitHub API requests. For faster and more reliable results, prefer focused date ranges and configure `GITHUB_TOKEN`.
+Additions and deletions are batched through GitHub GraphQL when a token is configured, with REST as a fallback. Large date ranges or active accounts can still make many GitHub API requests. For faster and more reliable results, prefer focused date ranges and configure `GITHUB_TOKEN`.
 
 ## Caching and rate limits
 
 - `/api/stats` does not add application-level caching.
-- Both SVG endpoints use a five-minute in-memory cache.
+- Both SVG endpoints cache GitHub source data separately from the rendered image (stats by username and date range, languages by username) for five minutes. Changing colors, size, or other style parameters reuses that data instead of calling GitHub again.
+- Concurrent banner requests for the same source data share one in-flight lookup.
+- Rendered SVGs are also cached in memory for five minutes.
 - SVG responses send `max-age=300`, `s-maxage=300`, and `stale-while-revalidate=600` cache directives.
 - In-memory caches are local to each running process and may be cleared by restarts or serverless instance changes.
+- When `GITHUB_TOKEN` is set, commit additions/deletions and language totals are fetched with batched GraphQL queries (REST fallback on failure).
 - GitHub rate limits still apply; authenticated requests receive a higher allowance.
 
 ## Scripts

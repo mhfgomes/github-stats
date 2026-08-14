@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ghFetch } from "@/lib/github";
-import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
+import { resolveLanguageBytes } from "@/lib/languages-server";
+import { getOrSetTtlCacheValue } from "@/lib/ttl-cache";
 
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
 
@@ -106,66 +106,6 @@ function escapeXml(s: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-async function fetchLanguageBytes(
-  username: string
-): Promise<Map<string, number>> {
-  const token = process.env.GITHUB_TOKEN;
-
-  // Check if the requested username owns the token — if so use authenticated
-  // endpoint to include private repos, otherwise fall back to public API.
-  let isTokenOwner = false;
-  if (token) {
-    const me = await ghFetch("https://api.github.com/user").catch(() => null);
-    if (me && typeof me.login === "string") {
-      isTokenOwner = me.login.toLowerCase() === username.toLowerCase();
-    }
-  }
-
-  const PAGE_CAP = 5;
-  const repoUrl = (page: number) =>
-    isTokenOwner
-      ? `https://api.github.com/user/repos?visibility=all&affiliation=owner&per_page=100&page=${page}&sort=pushed`
-      : `https://api.github.com/users/${username}/repos?per_page=100&page=${page}&sort=pushed`;
-
-  const firstPage: { full_name: string; fork: boolean }[] = await ghFetch(
-    repoUrl(1)
-  );
-  const extraPages =
-    firstPage.length === 100
-      ? await Promise.all(
-          Array.from({ length: PAGE_CAP - 1 }, (_, i) =>
-            ghFetch(repoUrl(i + 2)).catch(
-              () => [] as { full_name: string; fork: boolean }[]
-            )
-          )
-        )
-      : [];
-  const allRepos = [firstPage, ...extraPages].flat();
-
-  // Exclude forked repos — they skew results with languages you didn't write
-  const ownRepos = allRepos.filter((r) => !r.fork);
-  const reposToCheck = ownRepos.slice(0, 50);
-  const langTotals = new Map<string, number>();
-
-  const results = await Promise.allSettled(
-    reposToCheck.map(async (repo) => {
-      const data = await ghFetch(
-        `https://api.github.com/repos/${repo.full_name}/languages`
-      ).catch(() => ({} as Record<string, number>));
-      return data as Record<string, number>;
-    })
-  );
-  for (const r of results) {
-    if (r.status === "fulfilled") {
-      for (const [lang, bytes] of Object.entries(r.value)) {
-        langTotals.set(lang, (langTotals.get(lang) ?? 0) + bytes);
-      }
-    }
-  }
-
-  return langTotals;
 }
 
 function buildSVG(opts: {
@@ -287,52 +227,51 @@ export async function GET(req: NextRequest) {
     searchParams.get("title")?.trim() || "Most Used Languages";
   const cacheKey = req.nextUrl.search;
 
-  const cachedSvg = getTtlCacheValue<string>("languages-banner", cacheKey);
-  if (cachedSvg) {
-    return new NextResponse(cachedSvg, {
-      status: 200,
-      headers: {
-        "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": BANNER_CACHE_CONTROL,
-      },
-    });
-  }
-
   try {
-    const langBytes = await fetchLanguageBytes(username);
-    const sorted = [...langBytes.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, top);
+    const svg = await getOrSetTtlCacheValue(
+      "languages-banner",
+      cacheKey,
+      BANNER_CACHE_TTL_MS,
+      async () => {
+        const langBytes = await resolveLanguageBytes(username);
+        const sorted = [...langBytes.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, top);
 
-    if (sorted.length === 0) {
-      const emptySvg = buildSVG({ width, height, bg1, bg2, dir, text, muted, title, languages: [] });
-      setTtlCacheValue("languages-banner", cacheKey, emptySvg, BANNER_CACHE_TTL_MS);
-      return new NextResponse(emptySvg, {
-        status: 200,
-        headers: { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": BANNER_CACHE_CONTROL },
-      });
-    }
+        if (sorted.length === 0) {
+          return buildSVG({
+            width,
+            height,
+            bg1,
+            bg2,
+            dir,
+            text,
+            muted,
+            title,
+            languages: [],
+          });
+        }
 
-    const topTotal = sorted.reduce((s, [, v]) => s + v, 0);
-    const languages = sorted.map(([name, bytes], i) => ({
-      name,
-      pct: (bytes / topTotal) * 100,
-      color: getLangColor(name, i),
-    }));
+        const topTotal = sorted.reduce((s, [, v]) => s + v, 0);
+        const languages = sorted.map(([name, bytes], i) => ({
+          name,
+          pct: (bytes / topTotal) * 100,
+          color: getLangColor(name, i),
+        }));
 
-    const svg = buildSVG({
-      width,
-      height,
-      bg1,
-      bg2,
-      dir,
-      text,
-      muted,
-      title,
-      languages,
-    });
-
-    setTtlCacheValue("languages-banner", cacheKey, svg, BANNER_CACHE_TTL_MS);
+        return buildSVG({
+          width,
+          height,
+          bg1,
+          bg2,
+          dir,
+          text,
+          muted,
+          title,
+          languages,
+        });
+      }
+    );
 
     return new NextResponse(svg, {
       status: 200,
