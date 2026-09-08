@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStats } from "@/lib/stats-server";
-import { getTtlCacheValue, setTtlCacheValue } from "@/lib/ttl-cache";
+import { getOrSetTtlCacheValue } from "@/lib/ttl-cache";
 
 type Direction = "to-r" | "to-b" | "to-br" | "to-tr";
 type RangeKey =
@@ -258,48 +258,47 @@ export async function GET(req: NextRequest) {
   const top = parseIntParam(searchParams.get("top"), 3, 0, 6);
   const cacheKey = req.nextUrl.search;
 
-  const cachedSvg = getTtlCacheValue<string>("stats-banner", cacheKey);
-  if (cachedSvg) {
-    return new NextResponse(cachedSvg, {
-      status: 200,
-      headers: {
-        "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": BANNER_CACHE_CONTROL,
-      },
-    });
-  }
-
   try {
-    const stats = await resolveStats(username, from, to);
-    const net = stats.totalAdditions - stats.totalDeletions;
-    const topRepos = stats.repos
-      .slice(0, top)
-      .map((r) => ({ name: r.repo, changes: r.additions + r.deletions }));
+    const svg = await getOrSetTtlCacheValue(
+      "stats-banner",
+      cacheKey,
+      BANNER_CACHE_TTL_MS,
+      async () => {
+        const stats = await getOrSetTtlCacheValue(
+          "stats-data",
+          `${username.toLowerCase()}|${from}|${to}`,
+          BANNER_CACHE_TTL_MS,
+          () => resolveStats(username, from, to)
+        );
+        const net = stats.totalAdditions - stats.totalDeletions;
+        const topRepos = stats.repos
+          .slice(0, top)
+          .map((r) => ({ name: r.repo, changes: r.additions + r.deletions }));
 
-    const svg = buildSVG({
-      width,
-      height,
-      bg1,
-      bg2,
-      dir,
-      text,
-      muted,
-      accent,
-      title,
-      subtitle,
-      showTitle,
-      showSubtitle,
-      items,
-      topRepos,
-      stats: {
-        commits: stats.totalCommits,
-        additions: stats.totalAdditions,
-        deletions: stats.totalDeletions,
-        net,
-      },
-    });
-
-    setTtlCacheValue("stats-banner", cacheKey, svg, BANNER_CACHE_TTL_MS);
+        return buildSVG({
+          width,
+          height,
+          bg1,
+          bg2,
+          dir,
+          text,
+          muted,
+          accent,
+          title,
+          subtitle,
+          showTitle,
+          showSubtitle,
+          items,
+          topRepos,
+          stats: {
+            commits: stats.totalCommits,
+            additions: stats.totalAdditions,
+            deletions: stats.totalDeletions,
+            net,
+          },
+        });
+      }
+    );
 
     return new NextResponse(svg, {
       status: 200,

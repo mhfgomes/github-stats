@@ -91,11 +91,24 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function hasGithubToken() {
+  return Boolean(process.env.GITHUB_TOKEN?.trim());
+}
+
 function isRetryableStatus(status: number, body: string) {
   if (status === 429 || status === 502 || status === 503 || status === 504) {
     return true;
   }
   return status === 403 && /rate limit/i.test(body);
+}
+
+async function waitForRetry(res: Response, attempt: number) {
+  const retryAfter = Number(res.headers.get("retry-after"));
+  const waitMs =
+    Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : 400 * 2 ** attempt;
+  await sleep(waitMs);
 }
 
 export async function ghFetch(url: string) {
@@ -109,15 +122,57 @@ export async function ghFetch(url: string) {
       const body = await res.text();
       lastError = new Error(`GitHub API error ${res.status}: ${body}`);
       if (!isRetryableStatus(res.status, body) || attempt === 3) break;
-
-      const retryAfter = Number(res.headers.get("retry-after"));
-      const waitMs =
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : 400 * 2 ** attempt;
-      await sleep(waitMs);
+      await waitForRetry(res, attempt);
     }
     throw lastError ?? new Error("GitHub API error");
+  } finally {
+    releaseSlot();
+  }
+}
+
+type GraphQLError = { type?: string; message?: string };
+type GraphQLBody<T> = { data?: T | null; errors?: GraphQLError[] };
+
+function isRetryableGraphQL(status: number, json: GraphQLBody<unknown> | null) {
+  const body = JSON.stringify(json ?? {});
+  if (isRetryableStatus(status, body)) return true;
+  return (json?.errors ?? []).some(
+    (error) => error.type === "RATE_LIMITED" || /rate limit/i.test(error.message ?? "")
+  );
+}
+
+/** Authenticated GraphQL POST with the same concurrency cap and retries as REST. */
+export async function ghGraphQL<T>(
+  query: string,
+  variables: Record<string, unknown> = {}
+): Promise<T> {
+  await acquireSlot();
+  try {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await fetch(`${GITHUB_API}/graphql`, {
+        method: "POST",
+        headers: {
+          ...githubHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+
+      const json = (await res.json().catch(() => null)) as GraphQLBody<T> | null;
+      const retryable = isRetryableGraphQL(res.status, json);
+
+      if (res.ok && json?.data != null && !retryable) {
+        return json.data;
+      }
+
+      lastError = new Error(
+        `GitHub GraphQL error ${res.status}: ${JSON.stringify(json ?? {})}`
+      );
+      if (!retryable || attempt === 3) break;
+      await waitForRetry(res, attempt);
+    }
+    throw lastError ?? new Error("GitHub GraphQL error");
   } finally {
     releaseSlot();
   }
@@ -343,6 +398,149 @@ async function getCommitDetail(
   };
 }
 
+function commitStatsKey(fullName: string, sha: string) {
+  return `${fullName}@${sha}`;
+}
+
+async function fetchCommitDetailsRest(
+  items: Array<{ fullName: string; sha: string }>
+): Promise<Map<string, { additions: number; deletions: number }>> {
+  const results = new Map<string, { additions: number; deletions: number }>();
+  const settled = await Promise.allSettled(
+    items.map(async (item) => {
+      const stats = await getCommitDetail(item.fullName, item.sha);
+      return { key: commitStatsKey(item.fullName, item.sha), stats };
+    })
+  );
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      results.set(result.value.key, result.value.stats);
+    }
+  }
+  return results;
+}
+
+/**
+ * Batch additions/deletions via GraphQL aliases (one round-trip per ~40 commits)
+ * instead of a REST GET per commit. Misses fall back to REST so totals stay the same.
+ */
+async function fetchCommitStatsBatch(
+  items: Array<{ fullName: string; sha: string }>
+): Promise<Map<string, { additions: number; deletions: number }>> {
+  if (items.length === 0) {
+    return new Map();
+  }
+  if (!hasGithubToken()) {
+    return fetchCommitDetailsRest(items);
+  }
+
+  const BATCH_SIZE = 40;
+  const batches: Array<Array<{ fullName: string; sha: string }>> = [];
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    batches.push(items.slice(i, i + BATCH_SIZE));
+  }
+
+  const results = new Map<string, { additions: number; deletions: number }>();
+  const missing: Array<{ fullName: string; sha: string }> = [];
+
+  const settled = await Promise.allSettled(
+    batches.map(async (batch) => {
+      const varDefs: string[] = [];
+      const fields: string[] = [];
+      const variables: Record<string, string> = {};
+      const indexed: Array<{ fullName: string; sha: string; idx: number }> = [];
+      const batchMissing: Array<{ fullName: string; sha: string }> = [];
+
+      batch.forEach((item, idx) => {
+        const [owner, name] = item.fullName.split("/");
+        if (!owner || !name) {
+          batchMissing.push(item);
+          return;
+        }
+        varDefs.push(
+          `$o${idx}: String!`,
+          `$n${idx}: String!`,
+          `$s${idx}: GitObjectID!`
+        );
+        variables[`o${idx}`] = owner;
+        variables[`n${idx}`] = name;
+        variables[`s${idx}`] = item.sha;
+        fields.push(`
+          c${idx}: repository(owner: $o${idx}, name: $n${idx}) {
+            object(oid: $s${idx}) {
+              ... on Commit { additions deletions }
+            }
+          }
+        `);
+        indexed.push({ ...item, idx });
+      });
+
+      if (fields.length === 0) {
+        return {
+          found: [] as Array<{
+            key: string;
+            additions: number;
+            deletions: number;
+          }>,
+          batchMissing,
+        };
+      }
+
+      const query = `query(${varDefs.join(", ")}) { ${fields.join("\n")} }`;
+      const data = await ghGraphQL<
+        Record<
+          string,
+          { object?: { additions?: number; deletions?: number } | null } | null
+        >
+      >(query, variables);
+
+      const found: Array<{ key: string; additions: number; deletions: number }> =
+        [];
+      for (const item of indexed) {
+        const obj = data[`c${item.idx}`]?.object;
+        if (
+          obj &&
+          typeof obj.additions === "number" &&
+          typeof obj.deletions === "number"
+        ) {
+          found.push({
+            key: commitStatsKey(item.fullName, item.sha),
+            additions: obj.additions,
+            deletions: obj.deletions,
+          });
+        } else {
+          batchMissing.push(item);
+        }
+      }
+      return { found, batchMissing };
+    })
+  );
+
+  for (let i = 0; i < settled.length; i++) {
+    const result = settled[i];
+    if (result.status === "fulfilled") {
+      for (const row of result.value.found) {
+        results.set(row.key, {
+          additions: row.additions,
+          deletions: row.deletions,
+        });
+      }
+      missing.push(...result.value.batchMissing);
+    } else {
+      missing.push(...batches[i]);
+    }
+  }
+
+  if (missing.length > 0) {
+    const rest = await fetchCommitDetailsRest(missing);
+    for (const [key, stats] of rest) {
+      results.set(key, stats);
+    }
+  }
+
+  return results;
+}
+
 /** Opaque stable id so private repos stay distinct without revealing names. */
 function privateRepoId(fullName: string): string {
   let hash = 2166136261;
@@ -356,23 +554,27 @@ function privateRepoId(fullName: string): string {
 async function fetchStats(
   items: Array<{ fullName: string; isPrivate: boolean; commit: GHCommit }>
 ): Promise<CommitStats[]> {
-  const settled = await Promise.allSettled(
-    items.map(async ({ fullName, isPrivate, commit }) => {
-      const stats = await getCommitDetail(fullName, commit.sha);
-      const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
-      return {
-        sha: isPrivate ? `private:${commit.sha.slice(0, 7)}` : commit.sha,
-        repo: isPrivate ? `private:${privateRepoId(fullName)}` : fullName,
-        repoUrl: isPrivate ? null : repoUrl,
-        message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
-        date: commit.commit.committer.date,
-        commitUrl: isPrivate ? null : commit.html_url,
-        ...stats,
-        isPrivate,
-      } satisfies CommitStats;
-    })
+  const statsMap = await fetchCommitStatsBatch(
+    items.map((item) => ({ fullName: item.fullName, sha: item.commit.sha }))
   );
-  return fulfilledValues(settled);
+
+  const out: CommitStats[] = [];
+  for (const { fullName, isPrivate, commit } of items) {
+    const stats = statsMap.get(commitStatsKey(fullName, commit.sha));
+    if (!stats) continue;
+    const repoUrl = commit.html_url.replace(`/commit/${commit.sha}`, "");
+    out.push({
+      sha: isPrivate ? `private:${commit.sha.slice(0, 7)}` : commit.sha,
+      repo: isPrivate ? `private:${privateRepoId(fullName)}` : fullName,
+      repoUrl: isPrivate ? null : repoUrl,
+      message: isPrivate ? "PRIVATE" : commit.commit.message.split("\n")[0],
+      date: commit.commit.committer.date,
+      commitUrl: isPrivate ? null : commit.html_url,
+      ...stats,
+      isPrivate,
+    });
+  }
+  return out;
 }
 
 export async function fetchRawCommits(
@@ -397,18 +599,15 @@ export async function fetchRawCommits(
         until,
         from
       );
-      if (commits.length === 0) return [] as CommitStats[];
-      return fetchStats(
-        commits.map((c) => ({
-          fullName: repo.full_name,
-          isPrivate: repo.private,
-          commit: c,
-        }))
-      );
+      return commits.map((commit) => ({
+        fullName: repo.full_name,
+        isPrivate: repo.private,
+        commit,
+      }));
     })
   );
 
-  return fulfilledValues(settled).flat();
+  return fetchStats(fulfilledValues(settled).flat());
 }
 
 export function aggregateCommits(
