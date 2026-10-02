@@ -178,8 +178,6 @@ Additions and deletions require fetching commit details, so large date ranges or
 | `bun run lint` / `npm run lint` | Run ESLint |
 | `bun run typecheck` / `npm run typecheck` | Check TypeScript types |
 
-Type checking uses TypeScript 7.0.2. The `typescript` dependency aliases Microsoft’s TypeScript 6 compatibility package because ESLint and other tools still need its compiler API; `@typescript/native` supplies the TypeScript 7 `tsc` command. See [Microsoft’s side-by-side setup](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6-0).
-
 ## Project structure
 
 ```text
