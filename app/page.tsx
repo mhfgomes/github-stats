@@ -42,7 +42,7 @@ function startFetch(
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.error ?? `HTTP ${res.status}`);
+      throw new Error("Unable to load GitHub stats right now.");
     }
 
     return data as DayStats;
