@@ -34,7 +34,7 @@ cd github-stats
 
 ### 2. Install dependencies
 
-Using [Bun](https://bun.com) 1.4 or later:
+Using [Bun](https://bun.com) 1.4.2 or later:
 
 ```bash
 bun install

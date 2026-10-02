@@ -6,7 +6,7 @@ const config = [
   ...nextTs,
   // eslint-plugin-react still auto-detects via context.getFilename(),
   // which ESLint 10 removed. Pinning the version skips that path.
-  { settings: { react: { version: "19.2.8" } } },
+  { settings: { react: { version: "19.3.0" } } },
 ];
 
 export default config;
