@@ -342,7 +342,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Failed to generate languages banner", err);
+    return NextResponse.json(
+      { error: "Unable to generate the banner right now." },
+      { status: 500 }
+    );
   }
 }

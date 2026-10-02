@@ -15,7 +15,7 @@ function StatsContent({ promise }: { promise: Promise<DayStats> }) {
 class StatsErrorBoundary extends Component<
   {
     children: React.ReactNode;
-    fallback: (error: Error) => React.ReactNode;
+    fallback: React.ReactNode;
   },
   { error: Error | null }
 > {
@@ -27,21 +27,20 @@ class StatsErrorBoundary extends Component<
 
   render() {
     if (this.state.error) {
-      return this.props.fallback(this.state.error);
+      return this.props.fallback;
     }
 
     return this.props.children;
   }
 }
 
-function StatsError({ message }: { message: string }) {
+function StatsError() {
   return (
     <Alert variant="destructive">
       <AlertCircle />
       <AlertTitle>Couldn&apos;t load stats</AlertTitle>
       <AlertDescription>
-        <p>{message}</p>
-        <p className="mt-1 text-muted-foreground">
+        <p className="text-muted-foreground">
           Check the username, try a shorter date range, or try again in a
           moment.
         </p>
@@ -60,13 +59,7 @@ export default function StatsResults({
   return (
     <StatsErrorBoundary
       key={requestKey}
-      fallback={(error) => (
-        <StatsError
-          message={
-            error.message || "Something went wrong while fetching stats."
-          }
-        />
-      )}
+      fallback={<StatsError />}
     >
       <Suspense fallback={<StatsSkeleton />}>
         <StatsContent promise={promise} />
